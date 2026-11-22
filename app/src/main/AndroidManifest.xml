@@ -103,6 +103,12 @@
             </intent-filter>
         </activity>
 
+        <!-- Separate offline TTS playback; original YouTube foreground service remains unchanged. -->
+        <service
+            android:name=".listening.ListeningSpeechService"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
+
         <service
             android:name=".playback.WebVideoPlaybackService"
             android:exported="false"
