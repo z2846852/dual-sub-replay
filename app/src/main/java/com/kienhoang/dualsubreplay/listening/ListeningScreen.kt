@@ -45,6 +45,7 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.kienhoang.dualsubreplay.data.SavedWord
 import com.kienhoang.dualsubreplay.data.VocabularyRepository
+import com.kienhoang.dualsubreplay.ui.rememberWordPronouncer
 import kotlinx.coroutines.launch
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
@@ -63,6 +64,11 @@ internal fun ListeningScreen(
 ) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
+    val wordPronouncer = rememberWordPronouncer()
+    val voicePreferences = remember(ctx) {
+        ctx.getSharedPreferences("dual_sub_preferences", android.content.Context.MODE_PRIVATE)
+    }
+    var preferNatural by remember { mutableStateOf(voicePreferences.getBoolean("listening_natural_voice", true)) }
     val state by store.state.collectAsStateWithLifecycle()
     val status by github.status.collectAsStateWithLifecycle()
     val playback by ListeningPlayback.state.collectAsStateWithLifecycle()
@@ -116,11 +122,38 @@ internal fun ListeningScreen(
                                 pack = pack,
                                 playback = playback,
                                 showText = showText,
+                                preferNatural = preferNatural,
+                                onNaturalChange = { enabled ->
+                                    preferNatural = enabled
+                                    voicePreferences.edit().putBoolean("listening_natural_voice", enabled).apply()
+                                    if (playback.playing && playback.packId == pack.id) {
+                                        ListeningPlayback.start(ctx, pack, playback.currentLine)
+                                    }
+                                },
+                                onPrevious = {
+                                    val selectedIndex = if (playback.packId == pack.id) playback.currentLine else 0
+                                    ListeningPlayback.start(ctx, pack, (selectedIndex - 1).coerceAtLeast(0))
+                                },
+                                onNext = {
+                                    val selectedIndex = if (playback.packId == pack.id) playback.currentLine else 0
+                                    ListeningPlayback.start(ctx, pack, (selectedIndex + 1).coerceAtMost(pack.lines.lastIndex))
+                                },
+                                onRepeat = {
+                                    ListeningPlayback.start(
+                                        ctx,
+                                        pack,
+                                        if (playback.packId == pack.id) playback.currentLine else 0,
+                                    )
+                                },
                                 onPlay = {
                                     if (playback.paused && playback.packId == pack.id) {
                                         ListeningPlayback.resume(ctx)
                                     } else {
-                                        ListeningPlayback.start(ctx, pack)
+                                        ListeningPlayback.start(
+                                            ctx,
+                                            pack,
+                                            if (playback.packId == pack.id) playback.currentLine else 0,
+                                        )
                                     }
                                 },
                                 onPause = { ListeningPlayback.pause(ctx) },
@@ -345,13 +378,30 @@ internal fun ListeningScreen(
     if (selectedWord != null && selected != null && currentPack != null) {
         AlertDialog(
             onDismissRequest = {
+                wordPronouncer.stop()
                 word = null
                 selectedLine = null
+                if (playback.paused && playback.packId == currentPack.id) ListeningPlayback.resume(ctx)
             },
             title = { Text("听力生词 · $selectedWord") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(selected.en)
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(onClick = {
+                            wordPronouncer.speak(selectedWord, "en")
+                        }) { Text("🔊 单词发音") }
+                        OutlinedButton(onClick = {
+                            wordPronouncer.stop()
+                            word = null
+                            selectedLine = null
+                            ListeningPlayback.start(
+                                ctx,
+                                currentPack,
+                                currentPack.lines.indexOf(selected).coerceAtLeast(0),
+                            )
+                        }) { Text("▶ 重听本句") }
+                    }
                     if (selected.zh.isNotBlank()) {
                         Text(selected.zh, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
@@ -370,6 +420,7 @@ internal fun ListeningScreen(
                     val w = selectedWord
                     val line = selected
                     val savedPack = currentPack
+                    wordPronouncer.stop()
                     word = null
                     selectedLine = null
                     scope.launch {
@@ -408,6 +459,7 @@ internal fun ListeningScreen(
             },
             dismissButton = {
                 TextButton(onClick = {
+                    wordPronouncer.stop()
                     word = null
                     selectedLine = null
                     if (playback.paused && playback.packId == currentPack.id) ListeningPlayback.resume(ctx)
