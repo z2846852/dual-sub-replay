@@ -8,6 +8,8 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import java.time.OffsetDateTime
+import java.time.LocalDate
+import java.time.ZoneId
 import java.util.UUID
 
 /** Immutable identifiers, JSON on disk, and a durable local outbox. No network calls here. */
@@ -71,19 +73,25 @@ internal class ListeningStore(context: Context) {
             runCatching { ListeningPack.fromJson(packsArray.getJSONObject(it)) }.getOrNull()
         }
         val savedWords = HashSet<String>()
-        val reviewedWords = HashSet<String>()
         var pending = 0
-        var due = 0
         for (i in 0 until events.length()) {
             val e = events.optJSONObject(i) ?: continue
             if (!e.optBoolean("synced")) pending++
             val word = e.optString("word").lowercase()
             if (e.optString("type") == "saved") savedWords.add(word)
-            if (e.optString("type") == "reviewed" && e.optString("rating") in listOf("good", "easy")) reviewedWords.add(word)
         }
-        // Until FSRS is activated, a seen/reviewed count is not a validated long-term-memory estimate.
+        val memories = root.optJSONObject("memory") ?: JSONObject()
+        val now = System.currentTimeMillis()
+        val due = savedWords.count { word ->
+            val card = memories.optJSONObject(word)
+            card != null && card.optLong("due_at", Long.MAX_VALUE) <= now
+        }
+        val unsettled = savedWords.count { word ->
+            val card = memories.optJSONObject(word)
+            card == null || memoryFromJson(card)?.established != true
+        }
         return ListeningSnapshot(packs, pending, savedWords.size, due,
-            savedWords.count { it !in reviewedWords }, root.optString("device_id"))
+            unsettled, root.optString("device_id"))
     }
 
     private fun persist() {
@@ -125,9 +133,39 @@ internal class ListeningStore(context: Context) {
         items.put(event("saved", clean, pack.id, line.id).put("sentence", line.en))
         persist()
     }
+    @Synchronized fun reviewCandidates(): List<String> {
+        val events = root.optJSONArray("events") ?: JSONArray()
+        val saved = (0 until events.length()).map { events.getJSONObject(it) }
+            .filter { it.optString("type") == "saved" }.map { it.optString("word") }.distinct()
+        val memories = root.optJSONObject("memory") ?: JSONObject()
+        return saved.sortedWith(compareBy<String> { word ->
+            val card = memories.optJSONObject(word)
+            // Never-reviewed words are introduced after due cards so backlog does not explode.
+            if (card == null) 1L else card.optLong("due_at", Long.MAX_VALUE)
+        }.thenBy { it })
+    }
+    private fun memoryFromJson(j: JSONObject?): Fsrs6.Memory? {
+        if (j == null) return null
+        val days = j.optJSONArray("successful_days") ?: JSONArray()
+        return Fsrs6.Memory(j.getDouble("difficulty"), j.getDouble("stability_days"),
+            j.getLong("last_review"), j.getLong("due_at"), j.getInt("reviews"),
+            (0 until days.length()).map { days.getString(it) }.toSet())
+    }
     @Synchronized fun addReview(word: String, rating: String) {
-        require(rating in listOf("again", "hard", "good", "easy"))
-        root.getJSONArray("events").put(event("reviewed", word.lowercase(), "", "").put("rating", rating))
+        val grade = listOf("again", "hard", "good", "easy").indexOf(rating) + 1
+        require(grade in 1..4)
+        val normalized = word.lowercase()
+        val memories = root.optJSONObject("memory") ?: JSONObject().also { root.put("memory", it) }
+        val now = System.currentTimeMillis()
+        val result = Fsrs6.review(memoryFromJson(memories.optJSONObject(normalized)), grade, now,
+            LocalDate.now(ZoneId.of("Asia/Shanghai")).toString())
+        memories.put(normalized, JSONObject().put("algorithm", Fsrs6.VERSION)
+            .put("difficulty", result.difficulty).put("stability_days", result.stabilityDays)
+            .put("last_review", result.lastReview).put("due_at", result.dueAt)
+            .put("reviews", result.reviews).put("successful_days", JSONArray(result.successfulDays.toList())))
+        root.getJSONArray("events").put(event("reviewed", normalized, "", "").put("rating", rating)
+            .put("fsrs_version", Fsrs6.VERSION).put("stability_days", result.stabilityDays)
+            .put("due_at", result.dueAt))
         persist()
     }
     private fun event(type: String, word: String, dialogueId: String, lineId: String): JSONObject =
