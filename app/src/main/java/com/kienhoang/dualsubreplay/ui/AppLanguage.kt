@@ -103,6 +103,26 @@ internal object AppLanguageSettings {
 
     private fun preferences(context: Context) = context.getSharedPreferences("dual_sub_preferences", 0)
 
+    /**
+     * This personal fork starts in Simplified Chinese once; users can still change the
+     * interface language or choose "Device language" afterwards.
+     * Never overwrite a locale the user already selected.
+     */
+    fun preferSimplifiedChineseOnce(context: Context) {
+        val prefs = preferences(context)
+        if (prefs.getBoolean("fork_zh_cn_default_initialized", false)) return
+        val selected = selectedTag(context)
+        if (selected.isNullOrBlank()) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                context.getSystemService(LocaleManager::class.java)?.applicationLocales =
+                    LocaleList.forLanguageTags("zh-CN")
+            } else {
+                prefs.edit().putString(APP_LANGUAGE_PREFERENCE, "zh-CN").apply()
+            }
+        }
+        prefs.edit().putBoolean("fork_zh_cn_default_initialized", true).apply()
+    }
+
     /** The chosen language, or null when the app follows the device. */
     fun selected(context: Context): AppLanguageOption? = appLanguageOptionFor(selectedTag(context))
 
