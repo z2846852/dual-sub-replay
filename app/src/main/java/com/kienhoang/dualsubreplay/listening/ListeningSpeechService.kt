@@ -23,6 +23,11 @@ internal data class ListeningPlaybackState(
     val currentLine: Int = 0,
     val playing: Boolean = false,
     val error: String? = null,
+    /** Android TTS reports these character positions only when its engine supports range callbacks. */
+    val spokenStart: Int = 0,
+    val spokenEnd: Int = 0,
+    val hasWordTimings: Boolean = false,
+    val voiceName: String? = null,
 )
 
 /** Kept outside Compose so the foreground Service can update the current line. */
@@ -71,6 +76,9 @@ internal class ListeningSpeechService :
     private var pack: ListeningPack? = null
     private var index = 0
     private var running = false
+    private var utteranceGeneration = 0L
+    private var activeUtterance: String? = null
+    private var voiceName: String? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -118,24 +126,47 @@ internal class ListeningSpeechService :
             return
         }
         val engine = tts ?: return
+        // Honour the system's chosen offline English voice first. This lets users switch to
+        // an installed neural TTS engine (Kokoro/Piper) without bundling its models in this APK.
+        val currentVoice = engine.voice
         val voice =
-            engine.voices
-                ?.filter { v ->
-                    v.locale.language == Locale.ENGLISH.language && !v.isNetworkConnectionRequired
-                }?.sortedByDescending { it.locale.country == "US" }
-                ?.firstOrNull()
+            currentVoice?.takeIf {
+                it.locale.language == Locale.ENGLISH.language && !it.isNetworkConnectionRequired
+            } ?: engine.voices
+                ?.filter { it.locale.language == Locale.ENGLISH.language && !it.isNetworkConnectionRequired }
+                ?.sortedWith(
+                    compareByDescending<android.speech.tts.Voice> { it.quality }
+                        .thenByDescending { it.locale.country == "US" },
+                )?.firstOrNull()
         if (voice == null || engine.setVoice(voice) < TextToSpeech.SUCCESS) {
             reportError("未找到离线英语语音包，请在系统文字转语音设置中下载")
             return
         }
+        voiceName = voice.name
         engine.setSpeechRate(0.90f)
         engine.setOnUtteranceProgressListener(
             object : UtteranceProgressListener() {
                 override fun onStart(utteranceId: String?) = Unit
 
+                override fun onRangeStart(utteranceId: String?, start: Int, end: Int, frame: Int) {
+                    handler.post {
+                        if (running && utteranceId == activeUtterance) {
+                            val previous = ListeningPlayback.state.value
+                            if (previous.playing && previous.packId == pack?.id) {
+                                ListeningPlayback.state.value =
+                                    previous.copy(
+                                        spokenStart = start.coerceAtLeast(0),
+                                        spokenEnd = end.coerceAtLeast(start),
+                                        hasWordTimings = true,
+                                    )
+                            }
+                        }
+                    }
+                }
+
                 override fun onDone(utteranceId: String?) {
                     handler.post {
-                        if (running && utteranceId == "line-" + index) {
+                        if (running && utteranceId == activeUtterance) {
                             index++
                             if (index >= (pack?.lines?.size ?: 0)) stopNow() else speakLine()
                         }
@@ -144,7 +175,11 @@ internal class ListeningSpeechService :
 
                 @Deprecated("Deprecated in Java")
                 override fun onError(utteranceId: String?) {
-                    handler.post { reportError("TTS 朗读失败，检查离线语音包") }
+                    handler.post {
+                        if (running && utteranceId == activeUtterance) {
+                            reportError("TTS 朗读失败，检查离线语音包")
+                        }
+                    }
                 }
             },
         )
@@ -156,9 +191,11 @@ internal class ListeningSpeechService :
         val current = pack ?: return
         if (!ready || !running) return
         val line = current.lines.getOrNull(index) ?: return stopNow()
-        ListeningPlayback.state.value = ListeningPlaybackState(current.id, index, true)
+        val utteranceId = "${current.id}:${index}:${++utteranceGeneration}"
+        activeUtterance = utteranceId
+        ListeningPlayback.state.value = ListeningPlaybackState(current.id, index, true, voiceName = voiceName)
         getSystemService(NotificationManager::class.java).notify(NOTICE, notification())
-        val result = tts?.speak(line.en, TextToSpeech.QUEUE_FLUSH, null, "line-" + index)
+        val result = tts?.speak(line.en, TextToSpeech.QUEUE_FLUSH, null, utteranceId)
         if (result != TextToSpeech.SUCCESS) reportError("离线发音失败")
     }
 
