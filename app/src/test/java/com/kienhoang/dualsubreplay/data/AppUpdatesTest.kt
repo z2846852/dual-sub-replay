@@ -27,7 +27,7 @@ class AppUpdatesTest {
 
     @Test
     fun theChannelFollowsTheBuild() {
-        assertEquals(UpdateChannel.Official, updateChannelFor("com.kienhoang.dualsubreplay", false, "1.7.1"))
+        assertEquals(UpdateChannel.None, updateChannelFor("com.kienhoang.dualsubreplay", false, "1.7.1"))
         assertEquals(UpdateChannel.Official, updateChannelFor(FORK_APPLICATION_ID, false, "2.0.1"))
         assertEquals(UpdateChannel.None, updateChannelFor(FORK_APPLICATION_ID, true, "2.0.1"))
         assertEquals("z2846852/dual-sub-replay", UPDATE_REPOSITORY)

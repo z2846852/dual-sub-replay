@@ -31,15 +31,16 @@
 
 ## 下载安装
 
-### 通过 GitHub Actions 构建测试版
+### 第一次安装（正式自用版）
 
-1. 打开本仓库的 [构建页面](https://github.com/z2846852/dual-sub-replay/actions/workflows/android.yml)。
-2. 如果 GitHub 提示工作流被禁用，先启用此 Fork 的 Actions。
-3. 点击 **Run workflow**，选择 `main`，运行 Android 构建。
-4. 等待构建完成并确认测试通过，在成功的构建记录中下载生成的测试 APK 工件。
-5. 在 Android 手机上打开 APK 并按照系统提示安装。
+1. 打开 [本 Fork 最新 Release](https://github.com/z2846852/dual-sub-replay/releases/latest)。
+2. 等待 Android CI 全部通过、发布任务产出 `DualSub-Replay.apk`；若 Release 尚不存在，代表还没有正式安装包。
+3. 下载并安装 `DualSub-Replay.apk`，系统可能要求一次「允许安装未知应用」。
+4. 今后进入 App 的「检查更新」，即可从**本 Fork** 下载、校验并安装新版。适用时优先使用小差分包，否则完整下载 APK。
 
-**请勿把“已合并源码”理解成“已编译验证”。** 如果构建失败，请先检查失败日志，不要把未经验证的 APK 当作可用版本。测试版一般使用与正式版不同的包名或签名，可能与原版并存，数据也不会自动迁移。
+工作流：[Android build and releases](https://github.com/z2846852/dual-sub-replay/actions/workflows/android.yml)。它在 `main` 自动执行，**只生成一次正式签名 APK**，通过测试后直接发布该 APK，不需要另外二次编译。支持 GitHub Actions 页面手动触发。
+
+**当前状态由实时 Actions / Releases 为准。** 源码已提交不等于生成了 APK，更不等于真机测试通过。正式个人版的包名为 `com.z2846852.dualsubreplay`，可与原作者的独立安装，不能直接覆盖其安装或自动迁移应用数据。
 
 ### 设备要求
 
@@ -148,6 +149,12 @@
 **问：为什么测试 APK 可能无法覆盖安装原版？**
 
 答：包名和签名不一致时，Android 不能直接原位升级。先确认安装包类型、签名及数据备份情况，再决定是否卸载旧版本。
+
+## 个人自用版签名声明
+
+此 Fork 按照 My Work 的简化方式，**在公开仓库保存独立的固定 APK 签名材料及其口令**。它与 My Work 使用的密钥完全不同。好处是无需手动配置 GitHub Secrets、自动构建和更新不需要 ChatGPT 逐次干预；代价是私钥**不再是秘密**，他人理论上也可生成同签名 APK。因此该签名**不能用作可信软件分发或抵抗恶意替换的安全边界**。只有自己从此 Fork 的 GitHub Releases 下载并安装，仍应核对来源；若以后正式公开分发，应迁移到真正保密的签名并处理旧版迁移。
+
+这套签名是 APK 更新证书，不是 GitHub PAT。**私有 `english` 仓库的 PAT 始终只能保存在手机 Keystore，绝不写进公开仓库。**
 
 ## 隐私与安全
 

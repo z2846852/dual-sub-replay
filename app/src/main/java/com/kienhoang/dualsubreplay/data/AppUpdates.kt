@@ -72,7 +72,7 @@ internal fun updateChannelFor(
     playStore: Boolean = IS_PLAY_BUILD,
 ): UpdateChannel {
     if (playStore) return UpdateChannel.GooglePlay
-    if ((applicationId == FORK_APPLICATION_ID || applicationId == OFFICIAL_APPLICATION_ID) && !debuggable) {
+    if (applicationId == FORK_APPLICATION_ID && !debuggable) {
         return if (canRunReleaseApk(supportedAbis)) UpdateChannel.Official else UpdateChannel.UnsupportedDevice
     }
     val preview = PREVIEW_VERSION.find(versionName)
