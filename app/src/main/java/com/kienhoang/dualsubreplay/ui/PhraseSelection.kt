@@ -33,6 +33,8 @@ import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.BookmarkAdd
+import androidx.compose.material.icons.filled.BookmarkAdded
 import androidx.compose.material.icons.filled.Style
 import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material3.DropdownMenu
@@ -262,6 +264,8 @@ internal class PhraseActions(
     /** Runs whenever the selected text changes, before any button is pressed, with the text to speak. */
     val select: (text: String, translated: Boolean, singleWord: Boolean) -> Unit = { _, _, _ -> },
     val stopSpeech: () -> Unit = {},
+    /** Directly saves a subtitle selection to the canonical Practice database. */
+    val quickSave: (suspend (WordTap, String) -> Unit)? = null,
     val speechMessage: () -> String? = { null },
     val translate: (suspend (text: String, translated: Boolean) -> String)? = null,
     /** The selection's meaning in its sentence from the AI, while Meaning in this sentence (AI) is on; null while it is off. */
@@ -363,6 +367,7 @@ internal fun BindPhraseActions(
     translate: suspend (text: String, translated: Boolean) -> String,
     meaningInSentence: suspend (WordTap) -> ContextMeaning = { ContextMeaning.None },
     ankiCard: ((WordTap, String) -> SavedWord)? = null,
+    quickSave: (suspend (WordTap, String) -> Unit)? = null,
 ) {
     val controller = LocalPhraseSelection.current ?: return
     val source = learningSourceLanguage(state.resolvedSourceLanguage, state.sourcePreference)
@@ -400,6 +405,7 @@ internal fun BindPhraseActions(
                 readingInBar = readTapBarReading(context),
                 buttons = readTapBarButtons(context),
                 ankiCard = ankiCard,
+                quickSave = quickSave,
                 ankiPickedFromList = { countAnkiPickedFromList(context.getSharedPreferences("dual_sub_preferences", 0)) },
                 openGoogleTranslate = { text ->
                     when (sendToGoogleTranslate(context, text)) {
@@ -522,6 +528,10 @@ internal fun SelectableSubtitleText(
                     onAnkiFromList = controller.actions.ankiPickedFromList,
                     ankiCard = barAnkiCard(controller.actions, phraseTap(text, tokens, words, segment, translated)),
                     onPronounce = { spoken?.let { controller.actions.pronounce(it, translated) } },
+                    onSave = controller.actions.quickSave?.let { save ->
+                        val tap = phraseTap(text, tokens, words, segment, translated)
+                        { meaning: String -> save(tap, meaning) }
+                    },
                     onOpenGoogleTranslate = {
                         controller.actions.openGoogleTranslate(text.substring(start, end))
                     },
@@ -801,6 +811,7 @@ private fun PhraseActionBar(
     meaningInSentenceFirst: Boolean,
     onTranslate: () -> Unit,
     onPronounce: () -> Unit,
+    onSave: (suspend (String) -> Unit)? = null,
     onOpenGoogleTranslate: () -> Unit,
     onClose: () -> Unit,
     buttons: Set<TapBarButton> = TapBarButton.entries.filterTo(LinkedHashSet()) { it.inBarByDefault },
@@ -816,6 +827,9 @@ private fun PhraseActionBar(
     val clipboard = LocalClipboard.current
     val scope = rememberCoroutineScope()
     var copied by remember(phrase) { mutableStateOf(false) }
+    var saved by remember(phrase) { mutableStateOf(false) }
+    var saving by remember(phrase) { mutableStateOf(false) }
+    val context = LocalContext.current
     val clipLabel = stringResource(R.string.practice_clipboard_label)
     val provider =
         remember(selection, minTop, density) {
@@ -850,6 +864,30 @@ private fun PhraseActionBar(
                         },
                         PhraseAction(Icons.Default.Translate, R.string.practice_translate, "translate", onClick = onTranslate),
                         PhraseAction(Icons.AutoMirrored.Filled.VolumeUp, R.string.practice_pronounce, "pronounce", onClick = onPronounce),
+                        onSave?.let { save ->
+                            PhraseAction(
+                                if (saved) Icons.Default.BookmarkAdded else Icons.Default.BookmarkAdd,
+                                R.string.word_card_save_to_practice,
+                                "save",
+                                onClick = {
+                                    if (!saved && !saving) {
+                                        saving = true
+                                        scope.launch {
+                                            try {
+                                                // Save immediately. Meaning may still be loading; the existing
+                                                // dictionary/card remains available for later editing.
+                                                save(meaning.dictionary?.takeUnless { meaning.failed }.orEmpty())
+                                                saved = true
+                                            } catch (_: Exception) {
+                                                Toast.makeText(context, R.string.practice_save_failed, Toast.LENGTH_SHORT).show()
+                                            } finally {
+                                                saving = false
+                                            }
+                                        }
+                                    }
+                                },
+                            ).apply { enabled = !saved && !saving }
+                        },
                         anki?.action(scope, meaning, meaningInSentenceFirst),
                         PhraseAction(
                             Icons.AutoMirrored.Filled.OpenInNew,
