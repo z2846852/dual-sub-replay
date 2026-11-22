@@ -47,9 +47,11 @@ internal class ListeningNaturalVoice(context: Context) {
             return@withContext null
         }
         // Keep a bounded number of recent audio files without deleting currently playing media.
-        folder.listFiles()?.filter { it.name.endsWith(".mp3") }?.sortedBy { it.lastModified() }
-            ?.take((folder.listFiles()?.count { it.name.endsWith(".mp3") } ?: 0 - maxFiles).coerceAtLeast(0))
-            ?.filter { it != target }?.forEach { it.delete() }
+        val files = folder.listFiles()?.filter { it.name.endsWith(".mp3") }.orEmpty()
+        files.sortedBy { it.lastModified() }
+            .take((files.size - maxFiles).coerceAtLeast(0))
+            .filter { it != target }
+            .forEach { it.delete() }
         target
     }
 }
