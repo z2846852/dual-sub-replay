@@ -8,6 +8,9 @@ plugins {
 
 val appVersionCode = 35
 val appVersionName = "1.0.4"
+val forkRelease = providers.gradleProperty("forkRelease").orNull == "true"
+val forkVersionCode = providers.gradleProperty("forkVersionCode").orNull?.toIntOrNull()
+val forkVersionName = providers.gradleProperty("forkVersionName").orNull
 val releaseStoreFile = providers.environmentVariable("ANDROID_RELEASE_STORE_FILE").orNull
 val releaseStorePassword = providers.environmentVariable("ANDROID_RELEASE_STORE_PASSWORD").orNull
 val releaseKeyAlias = providers.environmentVariable("ANDROID_RELEASE_KEY_ALIAS").orNull
@@ -184,11 +187,15 @@ android {
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "com.kienhoang.dualsubreplay"
+        applicationId = if (forkRelease) "com.z2846852.dualsubreplay" else "com.kienhoang.dualsubreplay"
         minSdk = 26
         targetSdk = 36
-        versionCode = previewVersionCode ?: appVersionCode
-        versionName = appVersionName + previewVersionNameSuffix
+        versionCode = if (forkRelease) requireNotNull(forkVersionCode?.takeIf { it > appVersionCode }) {
+            "forkVersionCode must exceed the base code"
+        } else previewVersionCode ?: appVersionCode
+        versionName = if (forkRelease) requireNotNull(forkVersionName?.takeIf {
+            it.matches(Regex("[0-9]+\\.[0-9]+\\.[0-9]+"))
+        }) { "forkVersionName must be X.Y.Z" } else appVersionName + previewVersionNameSuffix
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // The Google Play build (`play` below) turns this on; see data/PlayBuild.kt.
