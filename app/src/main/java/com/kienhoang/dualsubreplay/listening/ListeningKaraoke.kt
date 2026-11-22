@@ -98,7 +98,7 @@ internal fun ListeningKaraokeCard(
                     onWordTap = { onWordTap(it, line) },
                     onDark = true,
                 )
-                Text(line.textZh(), color = waiting, fontSize = 14.sp)
+                Text(line.zh, color = waiting, fontSize = 14.sp)
             } else {
                 Text("盲听模式 · 不显示英文与译文", color = waiting, fontSize = 15.sp)
             }
