@@ -5,6 +5,8 @@ import com.kienhoang.dualsubreplay.translation.GoogleWebSpeech
 import com.kienhoang.dualsubreplay.translation.MAX_GOOGLE_SPEECH_CHARS
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.io.File
 import java.security.MessageDigest
 
@@ -19,19 +21,34 @@ import java.security.MessageDigest
 internal class ListeningNaturalVoice(context: Context) {
     private val folder = File(context.applicationContext.filesDir, "listening-natural-voice")
     private val google = GoogleWebSpeech()
-    private val maxFiles = 400
+    companion object {
+        // Playback and the batch preloader share the files and must not race on *.part.
+        private val downloadLock = Mutex()
+    }
 
-    suspend fun cachedOrDownload(text: String): File? = withContext(Dispatchers.IO) {
+    fun cached(text: String): File? {
+        if (text.isBlank()) return null
+        val file = File(folder, filename(text))
+        return file.takeIf { it.isFile && it.length() > 0L }
+    }
+
+    private fun filename(text: String): String =
+        MessageDigest.getInstance("SHA-256")
+            .digest(text.toByteArray(Charsets.UTF_8))
+            .joinToString("") { "%02x".format(it) } + ".mp3"
+
+    suspend fun cachedOrDownload(text: String): File? = downloadLock.withLock {
+        withContext(Dispatchers.IO) {
         if (text.isBlank() || text.length > MAX_GOOGLE_SPEECH_CHARS) return@withContext null
-        val digest = MessageDigest.getInstance("SHA-256").digest(text.toByteArray(Charsets.UTF_8))
-            .joinToString("") { "%02x".format(it) }
-        val target = File(folder, "$digest.mp3")
+        val target = File(folder, filename(text))
         if (target.isFile && target.length() > 0) {
             target.setLastModified(System.currentTimeMillis())
             return@withContext target
         }
         folder.mkdirs()
-        val temp = File(folder, "$digest.part")
+        // Avoid creating files on a nearly full device. Existing audio is never deleted on a sync.
+        if (folder.usableSpace < 128L * 1024 * 1024) return@withContext null
+        val temp = File(folder, target.nameWithoutExtension + ".part")
         val ok = try {
             google.record(text, "en", temp)
         } catch (_: Exception) {
@@ -46,12 +63,8 @@ internal class ListeningNaturalVoice(context: Context) {
             temp.delete()
             return@withContext null
         }
-        // Keep a bounded number of recent audio files without deleting currently playing media.
-        val files = folder.listFiles()?.filter { it.name.endsWith(".mp3") }.orEmpty()
-        files.sortedBy { it.lastModified() }
-            .take((files.size - maxFiles).coerceAtLeast(0))
-            .filter { it != target }
-            .forEach { it.delete() }
         target
+        }
     }
 }
+
