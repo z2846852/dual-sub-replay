@@ -138,10 +138,14 @@ internal class ListeningStore(context: Context) {
         val saved = (0 until events.length()).map { events.getJSONObject(it) }
             .filter { it.optString("type") == "saved" }.map { it.optString("word") }.distinct()
         val memories = root.optJSONObject("memory") ?: JSONObject()
-        return saved.sortedWith(compareBy<String> { word ->
+        val now = System.currentTimeMillis()
+        return saved.filter { word ->
             val card = memories.optJSONObject(word)
-            // Never-reviewed words are introduced after due cards so backlog does not explode.
-            if (card == null) 1L else card.optLong("due_at", Long.MAX_VALUE)
+            card == null || card.optLong("due_at", Long.MAX_VALUE) <= now
+        }.sortedWith(compareBy<String> { word ->
+            val card = memories.optJSONObject(word)
+            // Due reviews first, then completely new cards.
+            card?.optLong("due_at", Long.MAX_VALUE) ?: Long.MAX_VALUE
         }.thenBy { it })
     }
     private fun memoryFromJson(j: JSONObject?): Fsrs6.Memory? {
