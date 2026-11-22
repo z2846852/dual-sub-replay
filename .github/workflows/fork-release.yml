@@ -3,106 +3,125 @@ on:
   workflow_run:
     workflows: ["Android build and releases"]
     types: [completed]
-  workflow_dispatch:
+
 permissions:
   contents: write
   actions: read
+
 concurrency:
   group: fork-release
   cancel-in-progress: false
+
 jobs:
-  release:
+  sign-and-publish:
     if: >-
       github.repository == 'z2846852/dual-sub-replay' &&
-      github.ref == 'refs/heads/main' &&
-      (github.event_name == 'workflow_dispatch' ||
-       (github.event.workflow_run.head_branch == 'main' &&
-        github.event.workflow_run.conclusion == 'success'))
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out exactly the successful source revision
+        uses: actions/checkout@v4
         with:
           ref: main
           persist-credentials: false
-      - name: Only release commits with successful Android CI
+
+      - name: Reject outdated CI runs before signing
         env:
-          GH_TOKEN: ${{ github.token }}
+          EXPECTED_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           set -euo pipefail
-          sha="$(git rev-parse HEAD)"
-          gh api "repos/$GITHUB_REPOSITORY/actions/workflows/android.yml/runs?branch=main&status=success&per_page=30" \
-            --jq '.workflow_runs[].head_sha' | grep -Fxq "$sha" || {
-              echo "No successful Android CI for exact main SHA" >&2
-              exit 1
-            }
-      - name: Check dedicated signing secrets
+          [[ "$(git rev-parse HEAD)" == "$EXPECTED_SHA" ]] || {
+            echo "A newer main commit exists; its own CI run will be used instead."
+            exit 1
+          }
+
+      - name: Check private signing prerequisites
         id: signing
         env:
-          KEY: ${{ secrets.FORK_RELEASE_KEYSTORE_BASE64 }}
-          PASSWORD: ${{ secrets.FORK_RELEASE_STORE_PASSWORD }}
-          ALIAS: ${{ secrets.FORK_RELEASE_KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.FORK_RELEASE_KEY_PASSWORD }}
+          DATA_PAT: ${{ secrets.DATA_READ_PAT }}
+          SIGN_PASSWORD: ${{ secrets.FORK_SIGNING_PASSWORD }}
         run: |
-          if [[ -z "$KEY" || -z "$PASSWORD" || -z "$ALIAS" || -z "$KEY_PASSWORD" ]]; then
-            echo "::notice::Configure four FORK_RELEASE_* repository secrets to enable permanent updates."
+          if [[ -z "$DATA_PAT" || -z "$SIGN_PASSWORD" ]]; then
+            echo "::notice::Signing inactive: configure DATA_READ_PAT and FORK_SIGNING_PASSWORD Secrets."
             echo "ready=false" >> "$GITHUB_OUTPUT"
           else
             echo "ready=true" >> "$GITHUB_OUTPUT"
           fi
-      - uses: actions/setup-java@v4
+
+      - name: Retrieve exact unsigned APK produced by CI (no Gradle)
+        if: steps.signing.outputs.ready == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: DualSub-Replay-fork-unsigned
+          path: unsigned
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ github.token }}
+
+      - uses: android-actions/setup-android@v4
         if: steps.signing.outputs.ready == 'true'
         with:
-          distribution: temurin
-          java-version: '17'
-      - uses: android-actions/setup-android@v3
+          packages: platform-tools
+          log-accepted-android-sdk-licenses: false
+
+      - name: Install APK signing tools
         if: steps.signing.outputs.ready == 'true'
-      - name: Install SDK
-        if: steps.signing.outputs.ready == 'true'
-        run: sdkmanager "platforms;android-37.0" "build-tools;36.0.0"
-      - uses: gradle/actions/setup-gradle@v4
-        if: steps.signing.outputs.ready == 'true'
-      - name: Assemble permanently signed fork APK
+        run: sdkmanager "build-tools;36.0.0"
+
+      - name: Read password-protected keystore from private data repo and sign
         if: steps.signing.outputs.ready == 'true'
         env:
-          KEY: ${{ secrets.FORK_RELEASE_KEYSTORE_BASE64 }}
-          ANDROID_RELEASE_STORE_PASSWORD: ${{ secrets.FORK_RELEASE_STORE_PASSWORD }}
-          ANDROID_RELEASE_KEY_ALIAS: ${{ secrets.FORK_RELEASE_KEY_ALIAS }}
-          ANDROID_RELEASE_KEY_PASSWORD: ${{ secrets.FORK_RELEASE_KEY_PASSWORD }}
+          GH_TOKEN: ${{ secrets.DATA_READ_PAT }}
+          SIGN_PASSWORD: ${{ secrets.FORK_SIGNING_PASSWORD }}
+          CI_RUN_NUMBER: ${{ github.event.workflow_run.run_number }}
         run: |
           set -euo pipefail
-          export ANDROID_RELEASE_STORE_FILE="$RUNNER_TEMP/fork-keystore.jks"
-          printf '%s' "$KEY" | base64 --decode > "$ANDROID_RELEASE_STORE_FILE"
-          chmod 600 "$ANDROID_RELEASE_STORE_FILE"
-          version="2.0.$GITHUB_RUN_NUMBER"
-          code=$((100000 + GITHUB_RUN_NUMBER))
-          bash ./gradlew :app:assembleRelease -PforkRelease=true \
-            "-PforkVersionName=$version" "-PforkVersionCode=$code" \
-            -PrequireReleaseSigning=true --stacktrace
+          test -s unsigned/app-release-unsigned.apk
+          # The token is scoped to private z2846852/data, Contents: Read only.
+          private="$(gh api repos/z2846852/data --jq '.private')"
+          [[ "$private" == "true" ]] || { echo "data repo MUST be private" >&2; exit 1; }
+          keystore="$RUNNER_TEMP/dualsub-fork.p12"
+          aligned="$RUNNER_TEMP/aligned.apk"
+          cleanup() { rm -f "$keystore" "$aligned"; }
+          trap cleanup EXIT
+          gh api 'repos/z2846852/data/contents/signing/dualsub-release.p12?ref=main' \
+            --jq .content | base64 --decode > "$keystore"
+          chmod 600 "$keystore"
+          test -s "$keystore"
           mkdir -p release
-          cp app/build/outputs/apk/release/app-release.apk release/DualSub-Replay.apk
-          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs release/DualSub-Replay.apk \
+          buildtools="$ANDROID_HOME/build-tools/36.0.0"
+          "$buildtools/zipalign" -f -p 4 unsigned/app-release-unsigned.apk "$aligned"
+          "$buildtools/apksigner" sign \
+            --ks "$keystore" --ks-type PKCS12 --ks-key-alias dualsubfork \
+            --ks-pass env:SIGN_PASSWORD --key-pass env:SIGN_PASSWORD \
+            --out release/DualSub-Replay.apk "$aligned"
+          "$buildtools/apksigner" verify --verbose --print-certs release/DualSub-Replay.apk \
             | tee release/signing-report.txt
-          badging="$("$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging release/DualSub-Replay.apk | head -1)"
-          [[ "$badging" == *"name='com.z2846852.dualsubreplay'"* ]]
-          [[ "$badging" == *"versionCode='$code'"* ]]
-          printf '%s\n' "$version" > release/version.txt
+          badge="$("$buildtools/aapt" dump badging release/DualSub-Replay.apk | head -1)"
+          echo "$badge"
+          code=$((100000 + CI_RUN_NUMBER))
+          [[ "$badge" == *"name='com.z2846852.dualsubreplay'"* ]]
+          [[ "$badge" == *"versionCode='$code'"* ]]
+          printf '2.0.%s\n' "$CI_RUN_NUMBER" > release/version.txt
           printf '%s\n' "$code" > release/code.txt
-      - name: Keep one Android update signing identity
+
+      - name: Verify that the signer has not changed since the previous release
         if: steps.signing.outputs.ready == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          current="$(grep -i 'Signer #1 certificate SHA-256 digest:' release/signing-report.txt | head -1 | awk '{print $NF}' | tr 'A-F' 'a-f')"
-          [[ "$current" =~ ^[0-9a-f]{64}$ ]]
+          digest="$(grep -i 'Signer #1 certificate SHA-256 digest:' release/signing-report.txt | head -1 | awk '{print $NF}' | tr 'A-F' 'a-f')"
+          [[ "$digest" =~ ^[0-9a-f]{64}$ ]]
           mkdir -p old-signer
           if gh release download --pattern signing-fingerprint.txt --dir old-signer >/dev/null 2>&1; then
             old="$(tr -d '\r\n' < old-signer/signing-fingerprint.txt | tr 'A-F' 'a-f')"
-            [[ "$current" == "$old" ]] || { echo "Signing identity changed" >&2; exit 1; }
+            [[ "$digest" == "$old" ]] || { echo "Signing key changed; refusing incompatible update" >&2; exit 1; }
           fi
-          printf '%s\n' "$current" > release/signing-fingerprint.txt
-      - name: Create patches from up to ten old signed releases
+          printf '%s\n' "$digest" > release/signing-fingerprint.txt
+
+      - name: Build optional patches from ten recent signed releases
         if: steps.signing.outputs.ready == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
@@ -119,26 +138,29 @@ jobs:
             --old-releases old-releases --output-dir release/patches --entries release/patches.json
           python3 - <<'PY'
           import hashlib, json, pathlib
-          apk=pathlib.Path("release/DualSub-Replay.apk")
-          version=pathlib.Path("release/version.txt").read_text().strip()
-          code=int(pathlib.Path("release/code.txt").read_text().strip())
-          digest=hashlib.sha256(apk.read_bytes()).hexdigest()
-          patches=json.loads(pathlib.Path("release/patches.json").read_text())
-          info=dict(schema=1,version=version,version_code=code,minimum_safe_version_code=0,
-                    apk="DualSub-Replay.apk",sha256=digest,size=apk.stat().st_size,patches=patches)
-          pathlib.Path("release/update-info.json").write_text(json.dumps(info,indent=2)+"\n")
-          pathlib.Path("release/DualSub-Replay.apk.sha256").write_text(digest+"  DualSub-Replay.apk\n")
+          apk = pathlib.Path("release/DualSub-Replay.apk")
+          version = pathlib.Path("release/version.txt").read_text().strip()
+          code = int(pathlib.Path("release/code.txt").read_text().strip())
+          digest = hashlib.sha256(apk.read_bytes()).hexdigest()
+          patches = json.loads(pathlib.Path("release/patches.json").read_text())
+          info = dict(schema=1, version=version, version_code=code, minimum_safe_version_code=0,
+                      apk="DualSub-Replay.apk", sha256=digest, size=apk.stat().st_size, patches=patches)
+          pathlib.Path("release/update-info.json").write_text(json.dumps(info, indent=2) + "\n")
+          pathlib.Path("release/DualSub-Replay.apk.sha256").write_text(digest + "  DualSub-Replay.apk\n")
           PY
+
       - uses: actions/upload-artifact@v4
         if: steps.signing.outputs.ready == 'true'
         with:
           name: DualSubReplay-Fork-Stable-APK
           path: release/DualSub-Replay.apk
           retention-days: 30
-      - name: Publish signed APK and patches to GitHub Release
+
+      - name: Publish fixed-signature APK and cross-version patch assets
         if: steps.signing.outputs.ready == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
+          CI_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           set -euo pipefail
           shopt -s nullglob
@@ -149,6 +171,6 @@ jobs:
             release/update-info.json \
             release/signing-fingerprint.txt \
             release/patches/*.patch \
-            --target "$GITHUB_SHA" --latest \
+            --target "$CI_SHA" --latest \
             --title "离线英语听力 v$version" \
-            --notes "已通过 Android CI 的固定签名版。应用内更新优先使用适用的跨版本差分补丁，失败则下载完整 APK。"
+            --notes "单次编译、私有 data 仓库签名。应用内优先使用适配的跨版本差分补丁，失败则下载完整 APK。"

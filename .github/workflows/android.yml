@@ -98,13 +98,28 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-      - name: Build optimized release APK with test signing
+      # Compile the final, isolated personal-fork APK exactly once. It stays UNSIGNED here.
+      # The release job later downloads these exact bytes, zipaligns and signs without Gradle.
+      - name: Build optimized unsigned personal-fork APK
         run: |
           set -euo pipefail
+          code=$((100000 + GITHUB_RUN_NUMBER))
           bash ./gradlew assembleRelease \
-            -PtestReleaseSigning=true \
-            -PpreviewApplicationIdSuffix=".releasesmoke" \
+            -PforkRelease=true \
+            "-PforkVersionName=2.0.${GITHUB_RUN_NUMBER}" \
+            "-PforkVersionCode=$code" \
             --stacktrace
+
+      - name: Verify personal-fork APK package and version
+        run: |
+          set -euo pipefail
+          apk="app/build/outputs/apk/release/app-release-unsigned.apk"
+          test -s "$apk"
+          badge="$("$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$apk" | head -1)"
+          code=$((100000 + GITHUB_RUN_NUMBER))
+          echo "$badge"
+          [[ "$badge" == *"name='com.z2846852.dualsubreplay'"* ]]
+          [[ "$badge" == *"versionCode='$code'"* ]]
 
       - name: Verify release APK size, permissions, and forbidden components
         env:
@@ -122,13 +137,22 @@ jobs:
           else
             echo "No published release APK to compare with."
           fi
-          python3 tools/report_apk.py app/build/outputs/apk/release/app-release.apk \
+          python3 tools/report_apk.py app/build/outputs/apk/release/app-release-unsigned.apk \
             --max-bytes 32000000 \
             --stretch-bytes 28000000 \
             --warn-growth-bytes 500000 \
             --summary "$GITHUB_STEP_SUMMARY" \
             --output-json apk-size-report.json \
             "${baseline[@]}"
+
+      - name: Upload exactly-once compiled unsigned fork APK for signing
+        if: github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: DualSub-Replay-fork-unsigned
+          path: app/build/outputs/apk/release/app-release-unsigned.apk
+          if-no-files-found: error
+          retention-days: 7
 
       - name: Upload size report and R8 mapping
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
