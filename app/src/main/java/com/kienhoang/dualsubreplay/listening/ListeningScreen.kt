@@ -1,6 +1,5 @@
 package com.kienhoang.dualsubreplay.listening
 
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -10,7 +9,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -76,6 +74,9 @@ internal fun ListeningScreen(
     var message by remember { mutableStateOf("") }
     var showSettings by remember { mutableStateOf(false) }
     var showText by remember { mutableStateOf(false) }
+    var reviewMode by remember { mutableStateOf(false) }
+    var reviewWord by remember { mutableStateOf<String?>(null) }
+    var answerVisible by remember { mutableStateOf(false) }
     val selectedText = selectedLine?.en.orEmpty()
     val wordRegex = remember { Regex("[A-Za-z]+(?:['-][A-Za-z]+)*") }
 
@@ -93,8 +94,9 @@ internal fun ListeningScreen(
                 LazyColumn(Modifier.fillMaxSize().padding(inner).padding(horizontal = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     item {
-                        Text("已有对话包 " + state.packs.size + " · 待上传 " + state.pending +
-                            " · 收藏词 " + state.saved, style = MaterialTheme.typography.bodySmall)
+                        Text("对话包 " + state.packs.size + " · 未上传 " + state.pending +
+                            " · 收藏词 " + state.saved + " · 到期复习 " + state.due +
+                            " · 未稳固 " + state.unestablished, style = MaterialTheme.typography.bodySmall)
                         Text(status, style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
@@ -151,6 +153,49 @@ internal fun ListeningScreen(
                             if (busy) CircularProgressIndicator()
                         }
                         if (message.isNotBlank()) Text(message, style = MaterialTheme.typography.bodySmall)
+                    }
+                    item {
+                        HorizontalDivider()
+                        Text("听力记忆训练（FSRS-6，90% 目标保留率）",
+                            style = MaterialTheme.typography.titleSmall)
+                        Text("只在没有看文字的情况下，对自己的首次识别进行评分。普通连续听力不会自动刷分。",
+                            style = MaterialTheme.typography.bodySmall)
+                        if (!reviewMode) {
+                            Button(enabled = store.reviewCandidates().isNotEmpty(), onClick = {
+                                reviewWord = store.reviewCandidates().firstOrNull()
+                                answerVisible = false
+                                reviewMode = true
+                            }) { Text("开始听辨复习") }
+                        } else {
+                            val target = reviewWord
+                            if (target == null) {
+                                Text("当前待复习项目已经完成。")
+                                OutlinedButton(onClick = { reviewMode = false }) { Text("退出") }
+                            } else {
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Button(onClick = {
+                                        val practice = ListeningPack("self-test", "听辨自测", "A2",
+                                            listOf(ListeningLine("word", "A", target, "")))
+                                        ListeningPlayback.start(ctx, practice)
+                                    }) { Text("▶ 播放声音") }
+                                    OutlinedButton(onClick = { answerVisible = true }) { Text("显示答案") }
+                                }
+                                if (answerVisible) {
+                                    Text(target, style = MaterialTheme.typography.headlineSmall)
+                                    Text("你首次听到时的识别情况：", style = MaterialTheme.typography.bodySmall)
+                                    FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        listOf("again" to "没认出", "hard" to "很费力",
+                                            "good" to "认出", "easy" to "立即认出").forEach { (rating, label) ->
+                                            OutlinedButton(onClick = {
+                                                store.addReview(target, rating)
+                                                reviewWord = store.reviewCandidates().firstOrNull()
+                                                answerVisible = false
+                                            }) { Text(label) }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                     if (state.packs.isEmpty()) {
                         item {
