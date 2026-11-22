@@ -4,7 +4,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /** The repository whose GitHub releases the app updates from (owner request 2026-10-20). */
-internal const val UPDATE_REPOSITORY = "hoangkien1703/dual-sub-replay"
+internal const val UPDATE_REPOSITORY = "z2846852/dual-sub-replay"
 internal const val UPDATE_LATEST_RELEASE_URL = "https://api.github.com/repos/$UPDATE_REPOSITORY/releases/latest"
 internal const val UPDATE_PREVIEW_RELEASE_URL = "https://api.github.com/repos/$UPDATE_REPOSITORY/releases/tags/preview"
 internal const val UPDATE_RELEASES_PAGE_URL = "https://github.com/$UPDATE_REPOSITORY/releases"
@@ -18,6 +18,7 @@ internal const val UPDATE_INFO_URL = "$UPDATE_RELEASES_PAGE_URL/latest/download/
 internal const val OFFICIAL_APK_NAME = "DualSub-Replay.apk"
 internal const val OFFICIAL_APK_CHECKSUM_NAME = "$OFFICIAL_APK_NAME.sha256"
 internal const val OFFICIAL_APPLICATION_ID = "com.kienhoang.dualsubreplay"
+internal const val FORK_APPLICATION_ID = "com.z2846852.dualsubreplay"
 
 /** No release APK is near this; a bigger download is refused. */
 internal const val MAX_UPDATE_BYTES = 150L * 1024 * 1024
@@ -71,7 +72,7 @@ internal fun updateChannelFor(
     playStore: Boolean = IS_PLAY_BUILD,
 ): UpdateChannel {
     if (playStore) return UpdateChannel.GooglePlay
-    if (applicationId == OFFICIAL_APPLICATION_ID && !debuggable) {
+    if ((applicationId == FORK_APPLICATION_ID || applicationId == OFFICIAL_APPLICATION_ID) && !debuggable) {
         return if (canRunReleaseApk(supportedAbis)) UpdateChannel.Official else UpdateChannel.UnsupportedDevice
     }
     val preview = PREVIEW_VERSION.find(versionName)
