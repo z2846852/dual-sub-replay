@@ -22,6 +22,7 @@ internal data class ListeningPlaybackState(
     val packId: String? = null,
     val currentLine: Int = 0,
     val playing: Boolean = false,
+    val paused: Boolean = false,
     val error: String? = null,
     /** Android TTS reports these character positions only when its engine supports range callbacks. */
     val spokenStart: Int = 0,
@@ -48,6 +49,14 @@ internal object ListeningPlayback {
         ContextCompat.startForegroundService(context, intent)
     }
 
+    fun pause(context: Context) {
+        context.startService(Intent(context, ListeningSpeechService::class.java).apply { action = ListeningSpeechService.PAUSE })
+    }
+
+    fun resume(context: Context) {
+        context.startService(Intent(context, ListeningSpeechService::class.java).apply { action = ListeningSpeechService.RESUME })
+    }
+
     fun stop(context: Context) {
         context.startService(Intent(context, ListeningSpeechService::class.java).apply { action = ListeningSpeechService.STOP })
     }
@@ -63,6 +72,8 @@ internal class ListeningSpeechService :
     TextToSpeech.OnInitListener {
     companion object {
         const val PLAY = "offline-listening.PLAY"
+        const val PAUSE = "offline-listening.PAUSE"
+        const val RESUME = "offline-listening.RESUME"
         const val STOP = "offline-listening.STOP"
         const val CONTENT = "dialogue"
         const val LINE = "line"
@@ -99,6 +110,17 @@ internal class ListeningSpeechService :
     ): Int {
         if (intent?.action == STOP) {
             stopNow()
+            return START_NOT_STICKY
+        }
+        if (intent?.action == PAUSE) {
+            pauseNow()
+            return START_NOT_STICKY
+        }
+        if (intent?.action == RESUME) {
+            if (pack != null && !running) {
+                running = true
+                if (ready) speakLine() else if (tts == null) tts = TextToSpeech(this, this)
+            }
             return START_NOT_STICKY
         }
         if (intent?.action != PLAY) return START_NOT_STICKY
@@ -224,6 +246,16 @@ internal class ListeningSpeechService :
             .setOnlyAlertOnce(true)
             .addAction(android.R.drawable.ic_media_pause, "停止", stop)
             .build()
+    }
+
+    /** Pause the current sentence, keep the pack and position for explicit resume. */
+    private fun pauseNow() {
+        if (!running) return
+        running = false
+        activeUtterance = null
+        tts?.stop()
+        ListeningPlayback.state.value = ListeningPlayback.state.value.copy(playing = false, paused = true)
+        getSystemService(NotificationManager::class.java).notify(NOTICE, notification())
     }
 
     private fun reportError(message: String) {
