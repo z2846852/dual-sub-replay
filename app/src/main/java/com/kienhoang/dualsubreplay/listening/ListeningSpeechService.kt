@@ -6,6 +6,7 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.media.MediaPlayer
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
@@ -15,6 +16,12 @@ import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.kienhoang.dualsubreplay.MainActivity
 import com.kienhoang.dualsubreplay.R
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
 import java.util.Locale
 
@@ -63,9 +70,9 @@ internal object ListeningPlayback {
 }
 
 /**
- * On-device Android TTS reading, with a foreground notification while audio plays.
- * Intentionally never invokes web TTS or any network service; rejects network-required voices.
- * This is an independent service and does not modify the original YouTube playback.
+ * Background dialogue playback. Prefers the same Google web voice as Practice when connected,
+ * keeps successful MP3 recordings for later offline listening, and falls back to installed Android
+ * TTS on network errors/unsupported long sentences. Never changes YouTube's playback.
  */
 internal class ListeningSpeechService :
     Service(),
@@ -90,6 +97,11 @@ internal class ListeningSpeechService :
     private var utteranceGeneration = 0L
     private var activeUtterance: String? = null
     private var voiceName: String? = null
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private var speechJob: Job? = null
+    private var player: MediaPlayer? = null
+    private var natural: ListeningNaturalVoice? = null
+    private var generation = 0L
 
     override fun onCreate() {
         super.onCreate()
@@ -119,7 +131,13 @@ internal class ListeningSpeechService :
         if (intent?.action == RESUME) {
             if (pack != null && !running) {
                 running = true
-                if (ready) speakLine() else if (tts == null) tts = TextToSpeech(this, this)
+                if (player != null) {
+                    runCatching { player?.start() }.onFailure { speakLine() }
+                    ListeningPlayback.state.value =
+                        ListeningPlayback.state.value.copy(playing = true, paused = false)
+                } else {
+                    speakLine()
+                }
             }
             return START_NOT_STICKY
         }
@@ -129,13 +147,10 @@ internal class ListeningSpeechService :
             pack = parsed
             index = intent.getIntExtra(LINE, 0).coerceIn(0, parsed.lines.lastIndex)
             running = true
+            cancelCurrentAudio()
             ListeningPlayback.state.value = ListeningPlaybackState(parsed.id, index, true)
             startForeground(NOTICE, notification())
-            if (tts == null) {
-                tts = TextToSpeech(this, this)
-            } else if (ready) {
-                speakLine()
-            }
+            speakLine()
         } catch (e: Exception) {
             reportError("对话无法播放：" + (e.message ?: "未知错误"))
         }
@@ -189,8 +204,7 @@ internal class ListeningSpeechService :
                 override fun onDone(utteranceId: String?) {
                     handler.post {
                         if (running && utteranceId == activeUtterance) {
-                            index++
-                            if (index >= (pack?.lines?.size ?: 0)) stopNow() else speakLine()
+                            nextLine()
                         }
                     }
                 }
@@ -206,19 +220,105 @@ internal class ListeningSpeechService :
             },
         )
         ready = true
-        if (running) speakLine()
+        if (running) speakLocal()
     }
 
     private fun speakLine() {
         val current = pack ?: return
-        if (!ready || !running) return
+        if (!running) return
+        val line = current.lines.getOrNull(index) ?: return stopNow()
+        cancelCurrentAudio()
+        val requestId = generation
+        val preferOnline = getSharedPreferences("dual_sub_preferences", MODE_PRIVATE)
+            .getBoolean("listening_natural_voice", true)
+        ListeningPlayback.state.value = ListeningPlaybackState(
+            current.id,
+            index,
+            true,
+            voiceName = if (preferOnline) "Google 自然发音（优先）" else voiceName,
+        )
+        getSystemService(NotificationManager::class.java).notify(NOTICE, notification())
+        if (!preferOnline) {
+            speakLocal()
+            return
+        }
+        speechJob = scope.launch {
+            val file = (natural ?: ListeningNaturalVoice(this@ListeningSpeechService).also { natural = it })
+                .cachedOrDownload(line.en)
+            if (!running || generation != requestId) return@launch
+            if (file != null && playRecording(file, requestId)) return@launch
+            speakLocal()
+        }
+    }
+
+    /** Plays the cached Google MP3; returns false on an Android media decoder failure. */
+    private fun playRecording(file: java.io.File, requestId: Long): Boolean {
+        return try {
+            val media = MediaPlayer()
+            media.setDataSource(file.absolutePath)
+            media.setOnCompletionListener {
+                if (running && requestId == generation) nextLine()
+            }
+            media.setOnErrorListener { _, _, _ ->
+                if (running && requestId == generation) {
+                    releasePlayer()
+                    speakLocal()
+                }
+                true
+            }
+            media.prepare()
+            if (!running || requestId != generation) {
+                media.release()
+                false
+            } else {
+                player = media
+                ListeningPlayback.state.value = ListeningPlayback.state.value.copy(
+                    voiceName = "Google 自然发音 · 已缓存可离线播放",
+                )
+                media.start()
+                true
+            }
+        } catch (_: Exception) {
+            releasePlayer()
+            false
+        }
+    }
+
+    /** Used when offline, a sentence is longer than Google's request limit, or Google is down. */
+    private fun speakLocal() {
+        if (!running) return
+        if (tts == null) {
+            tts = TextToSpeech(this, this)
+            return
+        }
+        if (!ready) return
+        val current = pack ?: return
         val line = current.lines.getOrNull(index) ?: return stopNow()
         val utteranceId = "${current.id}:${index}:${++utteranceGeneration}"
         activeUtterance = utteranceId
-        ListeningPlayback.state.value = ListeningPlaybackState(current.id, index, true, voiceName = voiceName)
-        getSystemService(NotificationManager::class.java).notify(NOTICE, notification())
+        ListeningPlayback.state.value = ListeningPlayback.state.value.copy(voiceName = voiceName ?: "本机 TTS")
         val result = tts?.speak(line.en, TextToSpeech.QUEUE_FLUSH, null, utteranceId)
         if (result != TextToSpeech.SUCCESS) reportError("离线发音失败")
+    }
+
+    private fun nextLine() {
+        index++
+        if (index >= (pack?.lines?.size ?: 0)) stopNow() else speakLine()
+    }
+
+    private fun releasePlayer() {
+        val old = player
+        player = null
+        runCatching { old?.release() }
+    }
+
+    private fun cancelCurrentAudio() {
+        generation++
+        speechJob?.cancel()
+        speechJob = null
+        activeUtterance = null
+        releasePlayer()
+        tts?.stop()
     }
 
     private fun notification(): android.app.Notification {
@@ -252,8 +352,16 @@ internal class ListeningSpeechService :
     private fun pauseNow() {
         if (!running) return
         running = false
-        activeUtterance = null
-        tts?.stop()
+        if (player != null) {
+            player?.pause()
+        } else {
+            // Downloading may still complete in the background; never play after pause.
+            generation++
+            speechJob?.cancel()
+            speechJob = null
+            activeUtterance = null
+            tts?.stop()
+        }
         ListeningPlayback.state.value = ListeningPlayback.state.value.copy(playing = false, paused = true)
         getSystemService(NotificationManager::class.java).notify(NOTICE, notification())
     }
@@ -261,14 +369,14 @@ internal class ListeningSpeechService :
     private fun reportError(message: String) {
         ListeningPlayback.state.value = ListeningPlaybackState(pack?.id, index, false, error = message)
         running = false
-        tts?.stop()
+        cancelCurrentAudio()
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
 
     private fun stopNow() {
         running = false
-        tts?.stop()
+        cancelCurrentAudio()
         ListeningPlayback.state.value = ListeningPlaybackState(pack?.id, index, false)
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
@@ -277,6 +385,8 @@ internal class ListeningSpeechService :
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
+        cancelCurrentAudio()
+        scope.cancel()
         tts?.shutdown()
         tts = null
         ready = false
