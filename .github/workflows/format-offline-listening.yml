@@ -1,0 +1,43 @@
+name: Format new offline-listening Kotlin files
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/format-offline-listening.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: offline-listening-formatter
+  cancel-in-progress: false
+
+jobs:
+  format:
+    if: github.repository == 'z2846852/dual-sub-replay' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Run the repository's own ktlint formatter
+        shell: bash
+        run: |
+          set -euo pipefail
+          files=$(find app/src/main/java/com/kienhoang/dualsubreplay/listening app/src/test/java/com/kienhoang/dualsubreplay/listening -name '*.kt' | sort | paste -sd , -)
+          bash ./gradlew formatNewCode "-PformatFiles=$files" --stacktrace
+      - name: Commit formatting only
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add app/src/main/java/com/kienhoang/dualsubreplay/listening app/src/test/java/com/kienhoang/dualsubreplay/listening
+          if ! git diff --cached --quiet; then
+            git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'style: format offline-listening Kotlin via ktlint'
+            git push origin HEAD:main
+          fi
