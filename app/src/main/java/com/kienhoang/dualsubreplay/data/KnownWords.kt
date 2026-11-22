@@ -195,6 +195,15 @@ internal fun seenCountsText(counts: Map<String, Int>): String =
         .joinToString("\n") { "${it.key}\t${it.value}" }
 
 /**
+ * A portable checkpoint of the known-word list and incomplete exposure counters. Exposure counts
+ * are observations, NOT evidence that the learner can recognize the word by ear.
+ */
+internal data class KnownWordArchive(
+    val known: Map<String, Set<String>>,
+    val seen: Map<String, Map<String, Int>>,
+)
+
+/**
  * The words the user marked as known, one list per language in `files/known-words/<language>.txt`
  * (one key per line), and for Automatic known words how often each word not known yet was seen, in
  * `<language>.seen`. Separate from preferences, so Reset all settings keeps them, like saved words.
@@ -322,6 +331,59 @@ internal class KnownWordsRepository internal constructor(
                 _total.value = 0
             }
         }
+
+    /**
+     * Export a complete checkpoint including counters not yet flushed to disk.
+     * A cloud backup cannot silently omit the last 30 seconds of listening.
+     */
+    suspend fun exportArchive(): KnownWordArchive =
+        withContext(Dispatchers.IO) {
+            mutex.withLock {
+                val known = LinkedHashMap<String, Set<String>>()
+                val seen = LinkedHashMap<String, Map<String, Int>>()
+                storedLanguages().forEach { language ->
+                    knownList(language).value.takeIf { it.isNotEmpty() }?.let { known[language] = it.toSet() }
+                    seenList(language).value.takeIf { it.isNotEmpty() }?.let { seen[language] = it.toMap() }
+                }
+                KnownWordArchive(known, seen)
+            }
+        }
+
+    /**
+     * Restoring is deliberately non-destructive. Never overwrite existing local observations
+     * or manually corrected known words with an older cloud checkpoint.
+     */
+    suspend fun restoreArchiveIfEmpty(archive: KnownWordArchive): Boolean =
+        withContext(Dispatchers.IO) {
+            mutex.withLock {
+                val languages = storedLanguages()
+                if (languages.any { knownList(it).value.isNotEmpty() || seenList(it).value.isNotEmpty() }) {
+                    return@withLock false
+                }
+                val incomingLanguages = (archive.known.keys + archive.seen.keys).toSet()
+                    .filter { knownWordLanguage(it) == it }
+                if (incomingLanguages.isEmpty()) return@withLock false
+                require(archive.known.values.sumOf { it.size } <= 100_000) { "Word backup is too large" }
+                incomingLanguages.forEach { language ->
+                    val words = archive.known[language].orEmpty().mapNotNull(::knownWordKey).toSet()
+                    val counts = archive.seen[language].orEmpty().mapNotNull { (raw, count) ->
+                        val key = knownWordKey(raw)
+                        if (key != null && key !in words && count in 1..MAX_SEEN_COUNT) key to count else null
+                    }.toMap()
+                    write(language, words)
+                    writeSeen(language, counts)
+                    knownList(language).value = words
+                    seenList(language).value = counts
+                }
+                _total.value = incomingLanguages.sumOf { knownList(it).value.size }
+                true
+            }
+        }
+
+    private fun storedLanguages(): Set<String> =
+        (directory.listFiles().orEmpty().mapNotNull { file ->
+            file.name.takeIf { it.endsWith(".txt") || it.endsWith(".seen") }?.substringBeforeLast('.')
+        } + lists.keys + seenLists.keys).filter { knownWordLanguage(it) == it }.toSet()
 
     /** Every language's known words, read from their files (Backup & sharing). */
     suspend fun allKnown(): Map<String, Set<String>> =
