@@ -66,7 +66,7 @@ internal fun credibleEnglishSubtitle(text: String): Boolean {
             }
         }
     }
-    return latinLetters >= 2 && otherLetters == 0
+    return latinLetters > 0 && otherLetters == 0
 }
 
 /** The word keys of each subtitle line, in order and with repeats. Unreliable English rows are ignored. */
