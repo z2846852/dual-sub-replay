@@ -25,6 +25,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -44,8 +45,11 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.kienhoang.dualsubreplay.data.SavedWord
+import com.kienhoang.dualsubreplay.data.KnownWordsRepository
+import com.kienhoang.dualsubreplay.data.knownWordKey
 import com.kienhoang.dualsubreplay.data.VocabularyRepository
 import com.kienhoang.dualsubreplay.ui.rememberWordPronouncer
+import com.kienhoang.dualsubreplay.ui.rememberStudySettings
 import kotlinx.coroutines.launch
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
@@ -65,6 +69,15 @@ internal fun ListeningScreen(
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     val wordPronouncer = rememberWordPronouncer()
+    val knownWordRepository = remember(ctx) { KnownWordsRepository.get(ctx) }
+    val knownWords by remember(knownWordRepository) { knownWordRepository.words("en") }.collectAsStateWithLifecycle()
+    val vocabularyWords by vocabulary.words.collectAsStateWithLifecycle()
+    val learningWords = remember(vocabularyWords) {
+        vocabularyWords.filter { it.wordLanguage.substringBefore('-').equals("en", ignoreCase = true) }
+            .mapNotNull { knownWordKey(it.word) }.toSet()
+    }
+    val studySettings by rememberStudySettings()
+    val cacheProgress by ListeningVoicePrefetch.state.collectAsStateWithLifecycle()
     val voicePreferences = remember(ctx) {
         ctx.getSharedPreferences("dual_sub_preferences", android.content.Context.MODE_PRIVATE)
     }
@@ -95,7 +108,7 @@ internal fun ListeningScreen(
                 ) {
                     Icon(Icons.Default.Headphones, contentDescription = null)
                     Text("  离线英语听力", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                    TextButton(onClick = { showSettings = !showSettings }) { Text("GitHub") }
+                    TextButton(onClick = { showSettings = !showSettings }) { Text("设置") }
                     IconButton(onClick = onClose) { Icon(Icons.Default.Close, contentDescription = "返回 YouTube") }
                 }
             }) { inner ->
@@ -122,51 +135,32 @@ internal fun ListeningScreen(
                                 pack = pack,
                                 playback = playback,
                                 showText = showText,
-                                preferNatural = preferNatural,
-                                onNaturalChange = { enabled ->
-                                    preferNatural = enabled
-                                    voicePreferences.edit().putBoolean("listening_natural_voice", enabled).apply()
-                                    if (playback.playing && playback.packId == pack.id) {
-                                        ListeningPlayback.start(ctx, pack, playback.currentLine)
-                                    }
-                                },
+                                knownWords = if (studySettings.knownWords) knownWords else emptySet(),
+                                learningWords = learningWords,
+                                markNewWords = studySettings.knownWords && studySettings.markNewWords,
                                 onPrevious = {
-                                    val selectedIndex = if (playback.packId == pack.id) playback.currentLine else 0
-                                    ListeningPlayback.start(ctx, pack, (selectedIndex - 1).coerceAtLeast(0))
+                                    val i = if (playback.packId == pack.id) playback.currentLine else 0
+                                    ListeningPlayback.start(ctx, pack, (i - 1).coerceAtLeast(0))
                                 },
                                 onNext = {
-                                    val selectedIndex = if (playback.packId == pack.id) playback.currentLine else 0
-                                    ListeningPlayback.start(ctx, pack, (selectedIndex + 1).coerceAtMost(pack.lines.lastIndex))
+                                    val i = if (playback.packId == pack.id) playback.currentLine else 0
+                                    ListeningPlayback.start(ctx, pack, (i + 1).coerceAtMost(pack.lines.lastIndex))
                                 },
-                                onRepeat = {
-                                    ListeningPlayback.start(
-                                        ctx,
-                                        pack,
-                                        if (playback.packId == pack.id) playback.currentLine else 0,
-                                    )
-                                },
-                                onPlay = {
-                                    if (playback.paused && playback.packId == pack.id) {
-                                        ListeningPlayback.resume(ctx)
-                                    } else {
-                                        ListeningPlayback.start(
+                                onPlayPause = {
+                                    when {
+                                        playback.playing && playback.packId == pack.id ->
+                                            ListeningPlayback.pause(ctx)
+                                        playback.paused && playback.packId == pack.id && playback.error == null ->
+                                            ListeningPlayback.resume(ctx)
+                                        else -> ListeningPlayback.start(
                                             ctx,
                                             pack,
                                             if (playback.packId == pack.id) playback.currentLine else 0,
                                         )
                                     }
                                 },
-                                onPause = { ListeningPlayback.pause(ctx) },
-                                onStop = { ListeningPlayback.stop(ctx) },
+                                onTryLocal = { ListeningPlayback.tryLocal(ctx) },
                                 onToggleText = { showText = !showText },
-                                onVoices = {
-                                    // Android vendors may expose different TTS settings activities.
-                                    runCatching {
-                                        ctx.startActivity(android.content.Intent("com.android.settings.TTS_SETTINGS"))
-                                    }.onFailure {
-                                        ctx.startActivity(android.content.Intent(android.provider.Settings.ACTION_SETTINGS))
-                                    }
-                                },
                                 onWordTap = { selected, line ->
                                     if (playback.playing && playback.packId == pack.id) ListeningPlayback.pause(ctx)
                                     word = selected
@@ -190,6 +184,17 @@ internal fun ListeningScreen(
                         item {
                             Card {
                                 Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Column(Modifier.weight(1f)) {
+                                            Text("自然语音预缓存", style = MaterialTheme.typography.titleSmall)
+                                            Text("同步后自动下载，缓存缺失时可尝试本机语音",
+                                                style = MaterialTheme.typography.bodySmall)
+                                        }
+                                        Switch(checked = preferNatural, onCheckedChange = {
+                                            preferNatural = it
+                                            voicePreferences.edit().putBoolean("listening_natural_voice", it).apply()
+                                        })
+                                    }
                                     Text("连接私有 z2846852/english 仓库", style = MaterialTheme.typography.titleSmall)
                                     Text(
                                         "PAT 只保存在本机 Keystore 加密文件中。首次连接联网验证，此后每天首次打开自动同步一次。",
@@ -249,6 +254,14 @@ internal fun ListeningScreen(
                             if (busy) CircularProgressIndicator()
                         }
                         if (message.isNotBlank()) Text(message, style = MaterialTheme.typography.bodySmall)
+                        if (cacheProgress.total > 0 &&
+                            (cacheProgress.running || cacheProgress.complete < cacheProgress.total)) {
+                            Text(
+                                "语音缓存 ${cacheProgress.complete}/${cacheProgress.total}" +
+                                    (cacheProgress.warning?.let { " · ❗$it" } ?: ""),
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
                     }
                     item {
                         HorizontalDivider()
@@ -353,6 +366,9 @@ internal fun ListeningScreen(
                                                     selectedLine = line
                                                 },
                                                 onDark = false,
+                                                knownWords = if (studySettings.knownWords) knownWords else emptySet(),
+                                                learningWords = learningWords,
+                                                markNewWords = studySettings.knownWords && studySettings.markNewWords,
                                             )
                                             Text(
                                                 line.textZh(),
