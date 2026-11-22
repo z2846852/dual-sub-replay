@@ -25,7 +25,9 @@ import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
 /** PAT ciphertext never enters Android backup: its Keystore key is device-bound. */
-internal class ListeningVault(context: Context) {
+internal class ListeningVault(
+    context: Context,
+) {
     private val file = AtomicFile(File(context.noBackupFilesDir, "english-github-pat.bin"))
     private val alias = "dual-sub-english-keystore-v1"
 
@@ -34,13 +36,19 @@ internal class ListeningVault(context: Context) {
         store.load(null)
         (store.getKey(alias, null) as? SecretKey)?.let { return it }
         val generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore")
-        generator.init(KeyGenParameterSpec.Builder(alias, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
-            .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
-            .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
-            .setRandomizedEncryptionRequired(true).build())
+        generator.init(
+            KeyGenParameterSpec
+                .Builder(alias, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
+                .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+                .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+                .setRandomizedEncryptionRequired(true)
+                .build(),
+        )
         return generator.generateKey()
     }
+
     @Synchronized fun isConfigured(): Boolean = file.baseFile.exists()
+
     @Synchronized fun save(token: String) {
         require(token.length in 20..300)
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
@@ -59,6 +67,7 @@ internal class ListeningVault(context: Context) {
             throw ex
         }
     }
+
     @Synchronized fun read(): String? {
         if (!file.baseFile.exists()) return null
         val all = file.openRead().use { it.readBytes() }
@@ -67,11 +76,17 @@ internal class ListeningVault(context: Context) {
         cipher.init(Cipher.DECRYPT_MODE, key(), GCMParameterSpec(128, all.copyOfRange(0, 12)))
         return String(cipher.doFinal(all.copyOfRange(12, all.size)), Charsets.UTF_8)
     }
-    @Synchronized fun clear() { file.delete() }
+
+    @Synchronized fun clear() {
+        file.delete()
+    }
 }
 
 /** Network access is allowed only from explicit connection/sync or the first daily launch. */
-internal class ListeningGitHub(context: Context, private val store: ListeningStore) {
+internal class ListeningGitHub(
+    context: Context,
+    private val store: ListeningStore,
+) {
     private val vault = ListeningVault(context)
     private val mutex = Mutex()
     private val preferences = context.getSharedPreferences("offline_listening_sync", Context.MODE_PRIVATE)
@@ -80,42 +95,45 @@ internal class ListeningGitHub(context: Context, private val store: ListeningSto
     val status = _status.asStateFlow()
     val connected get() = vault.isConfigured()
 
-    suspend fun connect(raw: String): String = mutex.withLock {
-        withContext(Dispatchers.IO) {
-            val token = raw.trim()
-            require(token.length in 20..300) { "请输入有效的 fine-grained PAT" }
-            verify(token)
-            vault.save(token)
-            val msg = "PAT 已安全保存，点击同步即可下载新对话"
-            _status.value = msg
-            msg
+    suspend fun connect(raw: String): String =
+        mutex.withLock {
+            withContext(Dispatchers.IO) {
+                val token = raw.trim()
+                require(token.length in 20..300) { "请输入有效的 fine-grained PAT" }
+                verify(token)
+                vault.save(token)
+                val msg = "PAT 已安全保存，点击同步即可下载新对话"
+                _status.value = msg
+                msg
+            }
         }
-    }
+
     fun forgetToken() {
         vault.clear()
         _status.value = "PAT 已清除，本地单词和对话仍保留"
     }
 
-    suspend fun syncNow(): String = mutex.withLock {
-        withContext(Dispatchers.IO) {
-            try {
-                val token = vault.read() ?: return@withContext "未配置 PAT，请先连接 GitHub".also { _status.value = it }
-                _status.value = "正在上传本地学习记录…"
-                verify(token)
-                val sent = pushPending(token)
-                _status.value = "已上传 " + sent + " 条记录，正在下载对话…"
-                val packs = pullPacks(token)
-                store.putPacks(packs)
-                val msg = "同步完成：上传 " + sent + " 条学习事件，获取 " + packs.size + " 个对话包"
-                _status.value = msg
-                msg
-            } catch (e: Exception) {
-                val msg = "同步失败：" + safeError(e) + "。本地记录已保留，可手动重试"
-                _status.value = msg
-                msg
+    suspend fun syncNow(): String =
+        mutex.withLock {
+            withContext(Dispatchers.IO) {
+                try {
+                    val token = vault.read() ?: return@withContext "未配置 PAT，请先连接 GitHub".also { _status.value = it }
+                    _status.value = "正在上传本地学习记录…"
+                    verify(token)
+                    val sent = pushPending(token)
+                    _status.value = "已上传 " + sent + " 条记录，正在下载对话…"
+                    val packs = pullPacks(token)
+                    store.putPacks(packs)
+                    val msg = "同步完成：上传 " + sent + " 条学习事件，获取 " + packs.size + " 个对话包"
+                    _status.value = msg
+                    msg
+                } catch (e: Exception) {
+                    val msg = "同步失败：" + safeError(e) + "。本地记录已保留，可手动重试"
+                    _status.value = msg
+                    msg
+                }
             }
         }
-    }
 
     suspend fun autoSyncOnceDaily() {
         if (!vault.isConfigured()) return
@@ -134,11 +152,12 @@ internal class ListeningGitHub(context: Context, private val store: ListeningSto
 
     private fun pushPending(token: String): Int {
         val pending = store.pendingEvents()
-        val grouped = pending.groupBy { e ->
-            val month = e.getString("created_at").substring(0, 7)
-            check(month.matches(Regex("\\d{4}-\\d{2}")))
-            month
-        }
+        val grouped =
+            pending.groupBy { e ->
+                val month = e.getString("created_at").substring(0, 7)
+                check(month.matches(Regex("\\d{4}-\\d{2}")))
+                month
+            }
         for ((month, events) in grouped) {
             val device = store.state.value.deviceId
             check(device.matches(Regex("[0-9a-fA-F-]{36}")))
@@ -152,12 +171,15 @@ internal class ListeningGitHub(context: Context, private val store: ListeningSto
                     union[e.getString("id")] = e
                 }
                 events.forEach { union[it.getString("id")] = it }
-                val content = union.values.sortedWith(compareBy({ it.optString("created_at") }, { it.optString("id") }))
-                    .joinToString(separator = "\n", postfix = "\n") { it.toString() }
-                val body = JSONObject()
-                    .put("message", "Sync listening events from " + device + " (" + month + ")")
-                    .put("content", Base64.encodeToString(content.toByteArray(Charsets.UTF_8), Base64.NO_WRAP))
-                    .put("branch", "main")
+                val content =
+                    union.values
+                        .sortedWith(compareBy({ it.optString("created_at") }, { it.optString("id") }))
+                        .joinToString(separator = "\n", postfix = "\n") { it.toString() }
+                val body =
+                    JSONObject()
+                        .put("message", "Sync listening events from " + device + " (" + month + ")")
+                        .put("content", Base64.encodeToString(content.toByteArray(Charsets.UTF_8), Base64.NO_WRAP))
+                        .put("branch", "main")
                 existing?.second?.let { body.put("sha", it) }
                 try {
                     request("PUT", base + "/contents/" + path, token, body.toString())
@@ -190,9 +212,18 @@ internal class ListeningGitHub(context: Context, private val store: ListeningSto
         }
     }
 
-    private fun getFile(token: String, path: String): Pair<String, String>? {
-        val result = try { request("GET", base + "/contents/" + path + "?ref=main", token) }
-            catch (e: GitHubHttpException) { if (e.status == 404) return null else throw e }
+    private fun getFile(
+        token: String,
+        path: String,
+    ): Pair<String, String>? {
+        val result =
+            try {
+                request("GET", base + "/contents/" + path + "?ref=main", token)
+            } catch (
+                e: GitHubHttpException,
+            ) {
+                if (e.status == 404) return null else throw e
+            }
         val json = JSONObject(result)
         require(json.getString("encoding") == "base64")
         val bytes = Base64.decode(json.getString("content"), Base64.DEFAULT)
@@ -200,7 +231,12 @@ internal class ListeningGitHub(context: Context, private val store: ListeningSto
         return String(bytes, Charsets.UTF_8) to json.getString("sha")
     }
 
-    private fun request(method: String, address: String, token: String, body: String? = null): String {
+    private fun request(
+        method: String,
+        address: String,
+        token: String,
+        body: String? = null,
+    ): String {
         require(address == base || address.startsWith(base + "/"))
         val conn = URL(address).openConnection() as HttpURLConnection
         try {
@@ -229,17 +265,24 @@ internal class ListeningGitHub(context: Context, private val store: ListeningSto
             }
             if (code !in 200..299) throw GitHubHttpException(code)
             return buffer.toString(Charsets.UTF_8.name())
-        } finally { conn.disconnect() }
+        } finally {
+            conn.disconnect()
+        }
     }
+
     private fun safeError(ex: Exception): String =
         when (ex) {
-            is GitHubHttpException -> when (ex.status) {
-                401 -> "PAT 无效或已失效（401）"
-                403 -> "GitHub 拒绝访问或限流（403）"
-                404 -> "仓库或文件不可访问（404），请检查 PAT 仓库授权"
-                else -> "GitHub HTTP " + ex.status
-            }
+            is GitHubHttpException ->
+                when (ex.status) {
+                    401 -> "PAT 无效或已失效（401）"
+                    403 -> "GitHub 拒绝访问或限流（403）"
+                    404 -> "仓库或文件不可访问（404），请检查 PAT 仓库授权"
+                    else -> "GitHub HTTP " + ex.status
+                }
             else -> ex.message?.take(100) ?: ex.javaClass.simpleName
         }
-    private class GitHubHttpException(val status: Int) : RuntimeException("GitHub HTTP " + status)
+
+    private class GitHubHttpException(
+        val status: Int,
+    ) : RuntimeException("GitHub HTTP " + status)
 }
