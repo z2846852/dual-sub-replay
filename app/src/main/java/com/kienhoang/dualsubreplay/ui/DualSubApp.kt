@@ -46,6 +46,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import com.kienhoang.dualsubreplay.data.VideoKeys
+import com.kienhoang.dualsubreplay.listening.ListeningStore
+import com.kienhoang.dualsubreplay.listening.ListeningGitHub
+import com.kienhoang.dualsubreplay.listening.ListeningScreen
 import com.kienhoang.dualsubreplay.data.WordTap
 import com.kienhoang.dualsubreplay.data.AI_SUBTITLE_TRACK_ID
 import androidx.compose.material3.OutlinedTextField
@@ -124,6 +127,12 @@ fun DualSubApp(
         onStopOrDispose { viewModel.setAppVisible(false) }
     }
     val savedWords by viewModel.vocabulary.words.collectAsStateWithLifecycle()
+    val listeningContext = LocalContext.current.applicationContext
+    val listeningStore = remember(listeningContext) { ListeningStore(listeningContext) }
+    val listeningGitHub = remember(listeningStore) { ListeningGitHub(listeningContext, listeningStore) }
+    // One automatic attempt on the first app launch each Beijing day, only when PAT is configured.
+    LaunchedEffect(listeningGitHub) { listeningGitHub.autoSyncOnceDaily() }
+    var showListening by remember { mutableStateOf(false) }
     val webController = rememberYouTubeWebController()
     val pronouncer = rememberWordPronouncer()
     BindPhraseActions(
@@ -189,6 +198,7 @@ fun DualSubApp(
                     state = state,
                     webController = webController,
                     onVocabulary = { viewModel.selectLearningWord(null); webController.pause(); showVocabulary = true },
+                    onListening = { viewModel.selectLearningWord(null); webController.pause(); showListening = true },
                     onProgress = {
                         viewModel.selectLearningWord(null)
                         webController.pause()
@@ -269,6 +279,12 @@ fun DualSubApp(
             onPause = { webController.pause() },
             onDismiss = { showVocabulary = false },
         )
+        if (showListening) ListeningScreen(
+            store = listeningStore,
+            github = listeningGitHub,
+            vocabulary = viewModel.vocabulary,
+            onClose = { showListening = false },
+        )
         if (showProgress) ProgressScreen(
             repository = viewModel.immersion,
             savedWords = savedWords,
@@ -341,6 +357,7 @@ private fun DualSubExperience(
     state: DualSubUiState,
     webController: YouTubeWebController,
     onVocabulary: () -> Unit,
+    onListening: () -> Unit,
     onProgress: () -> Unit,
     onAutoPronounceChange: (Boolean) -> Unit,
     playerMode: PlayerExperienceMode,
@@ -478,6 +495,7 @@ private fun DualSubExperience(
 
     AppNavigation(
         onPractice = onVocabulary,
+        onListening = onListening,
         onProgress = onProgress,
         onSettings = { showSettings = true },
         onVisibilityChange = onNavigationVisibilityChange,
