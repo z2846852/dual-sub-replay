@@ -14,6 +14,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Headphones
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
@@ -78,7 +79,6 @@ internal fun ListeningScreen(
     var reviewMode by remember { mutableStateOf(false) }
     var reviewWord by remember { mutableStateOf<String?>(null) }
     var answerVisible by remember { mutableStateOf(false) }
-    val selectedText = selectedLine?.en.orEmpty()
 
     Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(Modifier.fillMaxSize()) {
@@ -116,7 +116,14 @@ internal fun ListeningScreen(
                                 pack = pack,
                                 playback = playback,
                                 showText = showText,
-                                onPlay = { ListeningPlayback.start(ctx, pack) },
+                                onPlay = {
+                                    if (playback.paused && playback.packId == pack.id) {
+                                        ListeningPlayback.resume(ctx)
+                                    } else {
+                                        ListeningPlayback.start(ctx, pack)
+                                    }
+                                },
+                                onPause = { ListeningPlayback.pause(ctx) },
                                 onStop = { ListeningPlayback.stop(ctx) },
                                 onToggleText = { showText = !showText },
                                 onVoices = {
@@ -128,6 +135,7 @@ internal fun ListeningScreen(
                                     }
                                 },
                                 onWordTap = { selected, line ->
+                                    if (playback.playing && playback.packId == pack.id) ListeningPlayback.pause(ctx)
                                     word = selected
                                     selectedLine = line
                                 },
@@ -307,6 +315,7 @@ internal fun ListeningScreen(
                                                 start = playback.spokenStart,
                                                 end = playback.spokenEnd,
                                                 onWordTap = { selected ->
+                                                    if (playback.playing && playback.packId == pack.id) ListeningPlayback.pause(ctx)
                                                     word = selected
                                                     selectedLine = line
                                                 },
@@ -323,58 +332,88 @@ internal fun ListeningScreen(
                             }
                         }
                     }
-                    if (word != null && pack != null && selectedLine != null) {
-                        item {
-                            HorizontalDivider()
-                            Text("听力盲点：" + word, style = MaterialTheme.typography.titleMedium)
-                            Text(selectedText, style = MaterialTheme.typography.bodyMedium)
-                            Text(selectedLine?.zh.orEmpty(), style = MaterialTheme.typography.bodySmall)
-                            Button(onClick = {
-                                val w = requireNotNull(word)
-                                val line = requireNotNull(selectedLine)
-                                store.addWord(w, pack, line)
-                                scope.launch {
-                                    try {
-                                        val id =
-                                            (pack.id + ":" + line.id + ":" + w.lowercase())
-                                                .toByteArray(StandardCharsets.UTF_8)
-                                                .let {
-                                                    MessageDigest.getInstance("SHA-256").digest(it)
-                                                }.joinToString("") { "%02x".format(it) }
-                                        vocabulary.save(
-                                            SavedWord(
-                                                id = id,
-                                                word = w,
-                                                reading = null,
-                                                wordLanguage = "en",
-                                                meaningLanguage = "zh",
-                                                meaning = "",
-                                                sentence = line.en,
-                                                translatedSentence = line.zh,
-                                                videoId = null,
-                                                startMs = 0,
-                                                endMs = 0,
-                                                translated = false,
-                                                online = false,
-                                                sourceTitle = pack.title,
-                                            ),
-                                        )
-                                        message = "已收藏 " + w + "（本地，待同步 GitHub）"
-                                    } catch (e: Exception) {
-                                        message = "学习事件已保存，但词库保存失败：" + (e.message ?: "")
-                                    }
-                                }
-                            }) { Text("收藏到生词簿") }
-                            Text(
-                                "当前版本保留原句上下文；更多 AI 例句将在 GitHub 专项对话包中提供。",
-                                style = MaterialTheme.typography.bodySmall,
-                            )
-                        }
-                    }
                     item { Spacer(Modifier.padding(bottom = 20.dp)) }
                 }
             }
         }
+    }
+    // The word card must be immediately reachable after a tap, not buried below all dialogue rows.
+    // Tapping a word pauses speech first; collecting it does not count as a successful audio review.
+    val selectedWord = word
+    val selected = selectedLine
+    val currentPack = pack
+    if (selectedWord != null && selected != null && currentPack != null) {
+        AlertDialog(
+            onDismissRequest = {
+                word = null
+                selectedLine = null
+            },
+            title = { Text("听力生词 · $selectedWord") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(selected.en)
+                    if (selected.zh.isNotBlank()) {
+                        Text(selected.zh, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Text(
+                        if (playback.paused && playback.packId == currentPack.id) {
+                            "朗读已暂停。收藏后将从这一句开头继续。"
+                        } else {
+                            "收藏到统一的生词簿，之后可以做听辨复习并同步 GitHub。"
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+            },
+            confirmButton = {
+                Button(onClick = {
+                    val w = selectedWord
+                    val line = selected
+                    val savedPack = currentPack
+                    word = null
+                    selectedLine = null
+                    scope.launch {
+                        try {
+                            store.addWord(w, savedPack, line)
+                            val id =
+                                (savedPack.id + ":" + line.id + ":" + w.lowercase())
+                                    .toByteArray(StandardCharsets.UTF_8)
+                                    .let { MessageDigest.getInstance("SHA-256").digest(it) }
+                                    .joinToString("") { "%02x".format(it) }
+                            vocabulary.save(
+                                SavedWord(
+                                    id = id,
+                                    word = w,
+                                    reading = null,
+                                    wordLanguage = "en",
+                                    meaningLanguage = "zh",
+                                    meaning = "",
+                                    sentence = line.en,
+                                    translatedSentence = line.zh,
+                                    videoId = null,
+                                    startMs = 0,
+                                    endMs = 0,
+                                    translated = false,
+                                    online = false,
+                                    sourceTitle = savedPack.title,
+                                ),
+                            )
+                            message = "已收藏 $w · 待下次 GitHub 同步"
+                            if (playback.paused && playback.packId == savedPack.id) ListeningPlayback.resume(ctx)
+                        } catch (e: Exception) {
+                            message = "收藏失败：" + (e.message ?: "未知错误")
+                        }
+                    }
+                }) { Text("收藏并继续") }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    word = null
+                    selectedLine = null
+                    if (playback.paused && playback.packId == currentPack.id) ListeningPlayback.resume(ctx)
+                }) { Text("不收藏 · 继续") }
+            },
+        )
     }
 }
 
