@@ -156,6 +156,14 @@ fun DualSubApp(
         viewModel::translateSubtitleText,
         meaningInSentence = { tap -> viewModel.meaningInContext(tap) },
         ankiCard = viewModel::ankiCard,
+        quickSave = { tap, meaning ->
+            // Uses the same SavedWord record and video context as the regular word card.
+            viewModel.saveWord(
+                selection = viewModel.learningSelectionForQuickSave(tap),
+                meaning = meaning,
+                online = true,
+            )
+        },
     )
     BindLineSoundReplay(webController, state.activeVideoId.takeUnless { state.liveFallback })
     val studyRunner = rememberStudyPlaybackRunner(webController, state)
