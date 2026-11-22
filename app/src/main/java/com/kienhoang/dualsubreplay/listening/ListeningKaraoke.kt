@@ -55,12 +55,14 @@ internal fun ListeningKaraokeCard(
     playback: ListeningPlaybackState,
     showText: Boolean,
     onPlay: () -> Unit,
+    onPause: () -> Unit,
     onStop: () -> Unit,
     onToggleText: () -> Unit,
     onVoices: () -> Unit,
     onWordTap: (word: String, line: ListeningLine) -> Unit,
 ) {
     val active = playback.playing && playback.packId == pack.id
+    val paused = playback.paused && playback.packId == pack.id
     val rowIndex = if (playback.packId == pack.id) playback.currentLine.coerceIn(pack.lines.indices) else 0
     val line = pack.lines[rowIndex]
     val synchronized = active && playback.hasWordTimings
@@ -125,14 +127,16 @@ internal fun ListeningKaraokeCard(
                 when {
                     active && synchronized -> "跟随实际语音位置逐词高亮"
                     active -> "正在朗读 · 当前语音引擎未提供逐词时间戳"
+                    paused -> "已暂停 · 继续会从当前句开头朗读"
                     playback.packId == pack.id && playback.error != null -> playback.error
                     else -> "选择材料后点击播放"
                 },
                 color = waiting,
                 fontSize = 12.sp,
             )
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Button(onClick = onPlay) { Text("▶ 播放") }
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Button(onClick = onPlay) { Text(if (paused) "▶ 继续" else "▶ 播放") }
+                if (active) OutlinedButton(onClick = onPause) { Text("Ⅱ 暂停") }
                 OutlinedButton(onClick = onStop) { Text("■ 停止") }
                 TextButton(onClick = onToggleText) {
                     Text(if (showText) "隐藏字幕" else "显示字幕", color = rainbow[0])
