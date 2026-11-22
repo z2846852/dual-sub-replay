@@ -4,6 +4,7 @@
 [![构建检查](https://github.com/z2846852/dual-sub-replay/actions/workflows/android.yml/badge.svg)](https://github.com/z2846852/dual-sub-replay/actions/workflows/android.yml)
 [![开源许可证](https://img.shields.io/badge/源码-MIT-blue)](LICENSE)
 [![原始项目](https://img.shields.io/badge/基于-DualSub%20Replay-6c757d)](https://github.com/hoangkien1703/dual-sub-replay)
+[![原项目贡献者：9 人](https://img.shields.io/badge/all_contributors-9-orange.svg)](CONTRIBUTORS.md)
 
 > **说明：** 这是个人学习用途的中文 Fork，基于 [hoangkien1703/dual-sub-replay](https://github.com/hoangkien1703/dual-sub-replay) 二次开发。原作者为 Hoang Trung Kien。本仓库并非原作者发布的正式版本；原有的 YouTube 播放与字幕功能继续保留。新增功能在真机和 GitHub Actions 编译通过前，均应视为**测试阶段**。
 
