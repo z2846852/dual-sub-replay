@@ -259,7 +259,7 @@ internal class ListeningSpeechService :
     }
 
     private fun reportError(message: String) {
-        ListeningPlayback.state.value = ListeningPlaybackState(pack?.id, index, false, message)
+        ListeningPlayback.state.value = ListeningPlaybackState(pack?.id, index, false, error = message)
         running = false
         tts?.stop()
         stopForeground(STOP_FOREGROUND_REMOVE)
