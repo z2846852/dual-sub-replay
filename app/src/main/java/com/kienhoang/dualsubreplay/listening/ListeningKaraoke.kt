@@ -19,6 +19,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -54,6 +55,11 @@ internal fun ListeningKaraokeCard(
     pack: ListeningPack,
     playback: ListeningPlaybackState,
     showText: Boolean,
+    preferNatural: Boolean,
+    onNaturalChange: (Boolean) -> Unit,
+    onPrevious: () -> Unit,
+    onNext: () -> Unit,
+    onRepeat: () -> Unit,
     onPlay: () -> Unit,
     onPause: () -> Unit,
     onStop: () -> Unit,
@@ -135,6 +141,9 @@ internal fun ListeningKaraokeCard(
                 fontSize = 12.sp,
             )
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                OutlinedButton(onClick = onPrevious, enabled = rowIndex > 0) { Text("◀ 上一句") }
+                OutlinedButton(onClick = onRepeat) { Text("↻ 重听本句") }
+                OutlinedButton(onClick = onNext, enabled = rowIndex < pack.lines.lastIndex) { Text("下一句 ▶") }
                 Button(onClick = onPlay) { Text(if (paused) "▶ 继续" else "▶ 播放") }
                 if (active) OutlinedButton(onClick = onPause) { Text("Ⅱ 暂停") }
                 OutlinedButton(onClick = onStop) { Text("■ 停止") }
@@ -142,9 +151,16 @@ internal fun ListeningKaraokeCard(
                     Text(if (showText) "隐藏字幕" else "显示字幕", color = rainbow[0])
                 }
             }
+            Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("优先自然语音", color = Color.White, fontSize = 14.sp)
+                    Text("首次联网，缓存后离线重播；失败自动回退本机 TTS", color = waiting, fontSize = 11.sp)
+                }
+                Switch(checked = preferNatural, onCheckedChange = onNaturalChange)
+            }
             TextButton(onClick = onVoices) {
                 Text(
-                    "更换离线声音 · ${playback.voiceName ?: "系统 TTS"}",
+                    "当前声音 · ${playback.voiceName ?: if (preferNatural) "Google 优先" else "系统 TTS"} · 更换系统语音",
                     color = rainbow[0],
                     fontSize = 12.sp,
                 )
