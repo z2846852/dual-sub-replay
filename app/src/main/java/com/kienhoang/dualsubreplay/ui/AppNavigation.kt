@@ -1,27 +1,27 @@
 package com.kienhoang.dualsubreplay.ui
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.kienhoang.dualsubreplay.R
 import com.kienhoang.dualsubreplay.ui.theme.brandBackground
@@ -76,15 +76,27 @@ internal fun AppNavigation(
                             }
                             NavigationDrawerItem(
                                 icon = { Icon(Icons.Default.Headphones, contentDescription = null) },
-                                label = { Text("离线英语听力") }, selected = false,
+                                label = { Text("离线英语听力") },
+                                selected = false,
                                 modifier = Modifier.testTag("open_offline_listening"),
-                                onClick = { scope.launch { drawer.close(); onListening() } },
+                                onClick = {
+                                    scope.launch {
+                                        drawer.close()
+                                        onListening()
+                                    }
+                                },
                             )
                             NavigationDrawerItem(
                                 icon = { Icon(Icons.Default.School, contentDescription = null) },
-                                label = { Text(stringResource(R.string.navigation_practice)) }, selected = false,
+                                label = { Text(stringResource(R.string.navigation_practice)) },
+                                selected = false,
                                 modifier = Modifier.testTag("open_saved_words"),
-                                onClick = { scope.launch { drawer.close(); onPractice() } },
+                                onClick = {
+                                    scope.launch {
+                                        drawer.close()
+                                        onPractice()
+                                    }
+                                },
                             )
                             NavigationDrawerItem(
                                 icon = { Icon(Icons.Default.Insights, contentDescription = null) },
@@ -100,8 +112,14 @@ internal fun AppNavigation(
                             )
                             NavigationDrawerItem(
                                 icon = { Icon(Icons.Default.Settings, contentDescription = null) },
-                                label = { Text(stringResource(R.string.navigation_settings)) }, selected = false,
-                                onClick = { scope.launch { drawer.close(); onSettings() } },
+                                label = { Text(stringResource(R.string.navigation_settings)) },
+                                selected = false,
+                                onClick = {
+                                    scope.launch {
+                                        drawer.close()
+                                        onSettings()
+                                    }
+                                },
                             )
                         }
                         Column(Modifier.padding(horizontal = 4.dp)) {
@@ -120,9 +138,11 @@ internal fun AppNavigation(
         content {
             if (tvLayout) return@content
             Box(
-                modifier = Modifier.size(width = 72.dp, height = 48.dp)
-                    .testTag("navigation_menu_button")
-                    .clickable(role = Role.Button) { scope.launch { drawer.open() } },
+                modifier =
+                    Modifier
+                        .size(width = 72.dp, height = 48.dp)
+                        .testTag("navigation_menu_button")
+                        .clickable(role = Role.Button) { scope.launch { drawer.open() } },
                 contentAlignment = Alignment.CenterStart,
             ) {
                 Icon(

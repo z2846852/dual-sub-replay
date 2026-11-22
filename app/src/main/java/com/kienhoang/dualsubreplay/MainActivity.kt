@@ -81,10 +81,11 @@ class MainActivity : ComponentActivity() {
 
     private fun allowContentInDisplayCutout() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) return
-        window.attributes = window.attributes.apply {
-            layoutInDisplayCutoutMode =
-                WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
-        }
+        window.attributes =
+            window.attributes.apply {
+                layoutInDisplayCutoutMode =
+                    WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+            }
     }
 
     private fun updateImmersiveMode(configuration: Configuration) {
@@ -105,11 +106,12 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun handleIntent(intent: Intent?) {
-        val sharedText = when (intent?.action) {
-            Intent.ACTION_SEND -> intent.getStringExtra(Intent.EXTRA_TEXT)
-            Intent.ACTION_VIEW -> intent.dataString
-            else -> null
-        }
+        val sharedText =
+            when (intent?.action) {
+                Intent.ACTION_SEND -> intent.getStringExtra(Intent.EXTRA_TEXT)
+                Intent.ACTION_VIEW -> intent.dataString
+                else -> null
+            }
         if (sharedText.isNullOrBlank()) return
         // A shared setup link (Settings → Backup & sharing) asks before it changes any setting.
         if (SetupLinkInbox.offer(sharedText)) return
