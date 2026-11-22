@@ -79,7 +79,6 @@ internal fun ListeningScreen(
     var reviewWord by remember { mutableStateOf<String?>(null) }
     var answerVisible by remember { mutableStateOf(false) }
     val selectedText = selectedLine?.en.orEmpty()
-    val wordRegex = remember { Regex("[A-Za-z]+(?:['-][A-Za-z]+)*") }
 
     Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(Modifier.fillMaxSize()) {
@@ -110,6 +109,30 @@ internal fun ListeningScreen(
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
+                    }
+                    if (pack != null) {
+                        item {
+                            ListeningKaraokeCard(
+                                pack = pack,
+                                playback = playback,
+                                showText = showText,
+                                onPlay = { ListeningPlayback.start(ctx, pack) },
+                                onStop = { ListeningPlayback.stop(ctx) },
+                                onToggleText = { showText = !showText },
+                                onVoices = {
+                                    // Android vendors may expose different TTS settings activities.
+                                    runCatching {
+                                        ctx.startActivity(android.content.Intent("com.android.settings.TTS_SETTINGS"))
+                                    }.onFailure {
+                                        ctx.startActivity(android.content.Intent(android.provider.Settings.ACTION_SETTINGS))
+                                    }
+                                },
+                                onWordTap = { selected, line ->
+                                    word = selected
+                                    selectedLine = line
+                                },
+                            )
+                        }
                     }
                     if (state.unestablished >= 100) {
                         item {
@@ -262,28 +285,6 @@ internal fun ListeningScreen(
                             }
                         }
                         if (pack != null) {
-                            item {
-                                Row(
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                ) {
-                                    Button(onClick = { ListeningPlayback.start(ctx, pack) }) { Text("▶ 连续播放") }
-                                    OutlinedButton(onClick = { ListeningPlayback.stop(ctx) }) { Text("■ 停止") }
-                                    TextButton(onClick = { showText = !showText }) {
-                                        Text(if (showText) "隐藏原文" else "显示原文")
-                                    }
-                                }
-                                if (playback.packId == pack.id) {
-                                    Text(
-                                        if (playback.playing) {
-                                            "正在朗读第 " + (playback.currentLine + 1) + " 句"
-                                        } else {
-                                            (playback.error ?: "已停止")
-                                        },
-                                        style = MaterialTheme.typography.bodySmall,
-                                    )
-                                }
-                            }
                             if (showText) {
                                 items(pack.lines, key = { pack.id + it.id }) { line ->
                                     Card {
@@ -295,26 +296,22 @@ internal fun ListeningScreen(
                                                     ListeningPlayback.start(ctx, pack, pack.lines.indexOf(line))
                                                 }) { Text("从这里播放") }
                                             }
-                                            FlowRow(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                                                val parts = wordRegex.findAll(line.en).map { it.value }.toList()
-                                                parts.forEach { part ->
-                                                    Text(
-                                                        part + " ",
-                                                        modifier =
-                                                            Modifier
-                                                                .clickable {
-                                                                    word = part
-                                                                    selectedLine = line
-                                                                }.padding(vertical = 5.dp),
-                                                        color =
-                                                            if (word == part && selectedLine == line) {
-                                                                MaterialTheme.colorScheme.primary
-                                                            } else {
-                                                                MaterialTheme.colorScheme.onSurface
-                                                            },
-                                                    )
-                                                }
-                                            }
+                                            ListeningRainbowWords(
+                                                text = line.en,
+                                                active = playback.playing &&
+                                                    playback.packId == pack.id &&
+                                                    playback.currentLine == pack.lines.indexOf(line),
+                                                synced = playback.hasWordTimings &&
+                                                    playback.packId == pack.id &&
+                                                    playback.currentLine == pack.lines.indexOf(line),
+                                                start = playback.spokenStart,
+                                                end = playback.spokenEnd,
+                                                onWordTap = { selected ->
+                                                    word = selected
+                                                    selectedLine = line
+                                                },
+                                                onDark = false,
+                                            )
                                             Text(
                                                 line.textZh(),
                                                 style = MaterialTheme.typography.bodySmall,
