@@ -48,12 +48,39 @@ internal fun knownWordLanguage(code: String?): String? =
         ?.lowercase(Locale.ROOT)
         ?.takeIf { it.matches(Regex("[a-z]{2,3}")) }
 
-/** The word keys of each subtitle line, in order and with repeats. */
+/**
+ * Do not interpret Chinese or other non-Latin subtitles as English merely because a provider
+ * labelled their caption track "en". Conservative filtering is preferable to poisoning a
+ * permanent word history. This is script validation, not full language identification:
+ * Spanish and other Latin-script languages still need a better detector.
+ */
+internal fun credibleEnglishSubtitle(text: String): Boolean {
+    var latinLetters = 0
+    var otherLetters = 0
+    text.forEach { char ->
+        if (char.isLetter()) {
+            if (Character.UnicodeScript.of(char.code) == Character.UnicodeScript.LATIN) {
+                latinLetters++
+            } else {
+                otherLetters++
+            }
+        }
+    }
+    return latinLetters >= 2 && otherLetters == 0
+}
+
+/** The word keys of each subtitle line, in order and with repeats. Unreliable English rows are ignored. */
 internal fun lineWordKeys(
     segments: List<SubtitleSegment>,
     languageCode: String?,
 ): List<List<String>> =
-    segments.map { segment -> LanguageAwareTokenizer.tokenize(segment.originalText, languageCode).mapNotNull(::knownWordKey) }
+    segments.map { segment ->
+        if (knownWordLanguage(languageCode) == "en" && !credibleEnglishSubtitle(segment.originalText)) {
+            emptyList()
+        } else {
+            LanguageAwareTokenizer.tokenize(segment.originalText, languageCode).mapNotNull(::knownWordKey)
+        }
+    }
 
 /** How much of a video's words are known, from [lineWordKeys]. */
 internal data class VideoComprehension(
@@ -131,23 +158,24 @@ internal fun countEncounters(
 }
 
 /**
- * Which lines of the open video were counted already: each line counts once per video, so replaying
- * it, seeking back or Repeat each line adds nothing.
+ * The original player slides its subtitle window and reuses list indices. An index is therefore
+ * not a subtitle identity: using it silently drops later lines. Use absolute cue times, original
+ * text, video and caption track instead. Keep keys for this app session so seeking/repeats, and
+ * switching away and back to a video, cannot inflate the counters.
  */
 internal class LineEncounters {
-    private var videoId: String? = null
-    private val lines = HashSet<Int>()
+    private val lines = HashSet<String>()
 
-    /** True the first time line [index] of [videoId] is taken; a new video starts again. */
     fun take(
         videoId: String,
-        index: Int,
+        trackId: String?,
+        cue: SubtitleSegment,
     ): Boolean {
-        if (videoId != this.videoId) {
-            this.videoId = videoId
-            lines.clear()
-        }
-        return index >= 0 && lines.add(index)
+        if (videoId.isBlank() || cue.startMs < 0 || cue.endMs <= cue.startMs) return false
+        return lines.add(
+            listOf(videoId, trackId.orEmpty(), cue.startMs.toString(), cue.endMs.toString(), cue.originalText)
+                .joinToString("\u0000"),
+        )
     }
 }
 
