@@ -48,6 +48,7 @@ internal enum class TapBarButton(
     COPY("tap_bar_copy", R.string.practice_copy, "copy", true),
     TRANSLATE("tap_bar_translate", R.string.practice_translate, "translate", true),
     PRONOUNCE("tap_bar_pronounce", R.string.practice_pronounce, "pronounce", true),
+    SAVE("tap_bar_save", R.string.word_card_save_to_practice, "save", true),
     ANKI("tap_bar_anki", R.string.phrase_add_to_anki, "anki", false),
     GOOGLE_TRANSLATE("tap_bar_google_translate", R.string.practice_open_google_translate, "google_translate", false),
 }
