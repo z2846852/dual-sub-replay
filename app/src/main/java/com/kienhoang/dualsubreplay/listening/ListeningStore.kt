@@ -2,6 +2,7 @@ package com.kienhoang.dualsubreplay.listening
 
 import android.content.Context
 import android.util.AtomicFile
+import com.kienhoang.dualsubreplay.data.SavedWord
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import org.json.JSONArray
@@ -187,6 +188,50 @@ internal class ListeningStore(
         }
         items.put(event("saved", clean, pack.id, line.id).put("sentence", line.en))
         persist()
+    }
+
+    /**
+     * The original YouTube Practice database is the canonical word collection.
+     * Mirror its English word/sentence saves into the durable listening event outbox, so both
+     * YouTube and offline listening contribute to the same GitHub learning history and audio
+     * recognition review queue. Never treat a reread/recomposition as another save.
+     * There is deliberately no review score here: adding a word is not proof of recognizing it.
+     */
+    @Synchronized fun importSavedVocabulary(words: List<SavedWord>): Int {
+        val events = root.optJSONArray("events") ?: JSONArray().also { root.put("events", it) }
+        val knownIds = HashSet<String>()
+        val knownOfflineSentences = HashSet<String>()
+        for (i in 0 until events.length()) {
+            val e = events.optJSONObject(i) ?: continue
+            if (e.optString("type") != "saved") continue
+            e.optString("source_word_id").takeIf { it.isNotBlank() }?.let(knownIds::add)
+            if (e.optString("dialogue_id") != "youtube") {
+                knownOfflineSentences += e.optString("word") + "\u0000" + e.optString("sentence")
+            }
+        }
+        var added = 0
+        for (entry in words) {
+            if (entry.wordLanguage.lowercase().substringBefore('-') != "en") continue
+            val clean = entry.word.lowercase().trim().replace(Regex("[^a-z'-]"), "")
+            if (!clean.matches(Regex("[a-z][a-z'-]{0,49}"))) continue
+            if (entry.id in knownIds) continue
+            // An offline word already created its own saved event before the canonical DB save.
+            if (entry.videoId == null && (clean + "\u0000" + entry.sentence) in knownOfflineSentences) continue
+            val source = if (entry.videoId.isNullOrBlank()) "practice" else "youtube"
+            events.put(
+                event("saved", clean, source, entry.id)
+                    .put("source", source)
+                    .put("source_word_id", entry.id)
+                    .put("sentence", entry.sentence)
+                    .put("translation", entry.translatedSentence.orEmpty())
+                    .put("video_id", entry.videoId.orEmpty())
+                    .put("source_title", entry.sourceTitle.orEmpty()),
+            )
+            knownIds += entry.id
+            added++
+        }
+        if (added > 0) persist()
+        return added
     }
 
     @Synchronized fun reviewCandidates(): List<String> {
