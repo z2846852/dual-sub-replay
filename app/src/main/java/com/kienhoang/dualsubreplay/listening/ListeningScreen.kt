@@ -53,7 +53,7 @@ import java.security.MessageDigest
  * TTS uses a separate foreground Service and can continue while the phone is locked.
  */
 @Composable
-@Suppress("LongMethod")
+@Suppress("LongMethod", "CyclomaticComplexMethod")
 internal fun ListeningScreen(
     store: ListeningStore,
     github: ListeningGitHub,
