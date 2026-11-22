@@ -215,6 +215,8 @@ internal class KnownWordsRepository internal constructor(
     private val seenLists = ConcurrentHashMap<String, MutableStateFlow<Map<String, Int>>>()
     private val loaded = ConcurrentHashMap.newKeySet<String>()
     private val unsaved = ConcurrentHashMap.newKeySet<String>()
+    // Lives outside the cleared word directory so a manual reset is not undone by first cloud sync.
+    private val manualEditMarker = File(directory.parentFile, ".${directory.name}-manually-edited")
     private val mutex = Mutex()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val _total = MutableStateFlow<Int?>(null)
@@ -310,6 +312,7 @@ internal class KnownWordsRepository internal constructor(
             write(language, updated)
             flow.value = updated
             // Marked either way, a word's count starts again from nothing.
+            manualEditMarker.writeText("Manual known-word correction", Charsets.UTF_8)
             val seen = seenList(language)
             if (valid.any(seen.value::containsKey)) {
                 seen.value = seen.value - valid.toSet()
@@ -325,6 +328,7 @@ internal class KnownWordsRepository internal constructor(
         withContext(Dispatchers.IO) {
             mutex.withLock {
                 directory.listFiles()?.forEach { it.delete() }
+                manualEditMarker.writeText("Known words deliberately cleared", Charsets.UTF_8)
                 lists.values.forEach { it.value = emptySet() }
                 seenLists.values.forEach { it.value = emptyMap() }
                 unsaved.clear()
@@ -356,6 +360,8 @@ internal class KnownWordsRepository internal constructor(
     suspend fun restoreArchiveIfEmpty(archive: KnownWordArchive): Boolean =
         withContext(Dispatchers.IO) {
             mutex.withLock {
+                // A user may have deliberately cleared all known words before connecting GitHub.
+                if (manualEditMarker.isFile) return@withLock false
                 val languages = storedLanguages()
                 if (languages.any { knownList(it).value.isNotEmpty() || seenList(it).value.isNotEmpty() }) {
                     return@withLock false
