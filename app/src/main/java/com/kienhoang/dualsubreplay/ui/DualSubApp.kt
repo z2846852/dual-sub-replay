@@ -99,6 +99,7 @@ import com.kienhoang.dualsubreplay.data.soundReplayClip
 import com.kienhoang.dualsubreplay.listening.ListeningGitHub
 import com.kienhoang.dualsubreplay.listening.ListeningScreen
 import com.kienhoang.dualsubreplay.listening.ListeningStore
+import com.kienhoang.dualsubreplay.listening.ListeningVoicePrefetch
 import com.kienhoang.dualsubreplay.translation.TranslationLanguages
 import com.kienhoang.dualsubreplay.ui.theme.DualSubTheme
 import com.kienhoang.dualsubreplay.ui.theme.brandColors
@@ -145,6 +146,8 @@ fun DualSubApp(
             listeningStore.importSavedVocabulary(viewModel.vocabulary.words.value)
         }
         listeningGitHub.autoSyncOnceDaily()
+        // Resume uncached dialogue audio even if today's GitHub sync already ran.
+        ListeningVoicePrefetch.schedule(listeningContext, listeningStore.state.value.packs)
     }
     var showListening by remember { mutableStateOf(false) }
     val webController = rememberYouTubeWebController()
