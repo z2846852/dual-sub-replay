@@ -121,6 +121,26 @@ class KnownWordsTest {
     }
 
     @Test
+    fun archivePreservesUnsavedEncountersAndNeverOverwritesLocalCorrections() =
+        runBlocking {
+            val source = KnownWordsRepository(File(folder.root, "original"))
+            source.setKnown("en", listOf("already"), known = true)
+            source.encounter("en", listOf("thinking"), learning = emptySet(), threshold = 20)
+            val archive = source.exportArchive()
+            assertEquals(setOf("already"), archive.known["en"])
+            assertEquals(mapOf("thinking" to 1), archive.seen["en"])
+
+            val restored = KnownWordsRepository(File(folder.root, "restored"))
+            assertTrue(restored.restoreArchiveIfEmpty(archive))
+            assertEquals(setOf("already"), restored.words("en").value)
+            assertEquals(mapOf("thinking" to 1), restored.seen("en").value)
+
+            restored.setKnown("en", listOf("already"), known = false)
+            assertFalse("An old cloud checkpoint cannot undo a manual correction", restored.restoreArchiveIfEmpty(archive))
+            assertFalse("The manual correction must survive", "already" in restored.words("en").value)
+        }
+
+    @Test
     fun seenCountsSurviveTheirFileAndIgnoreBrokenLines() {
         val counts = mapOf("cats" to 4, "猫" to 1)
         assertEquals(counts, parseSeenCounts(seenCountsText(counts)))
