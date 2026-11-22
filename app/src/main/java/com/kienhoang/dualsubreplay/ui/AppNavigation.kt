@@ -10,6 +10,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
@@ -34,6 +35,7 @@ internal val navigationMenuOpen = MutableStateFlow(false)
 @Composable
 internal fun AppNavigation(
     onPractice: () -> Unit,
+    onListening: () -> Unit = {},
     onSettings: () -> Unit,
     onProgress: () -> Unit = {},
     onVisibilityChange: (Boolean) -> Unit = {},
@@ -72,6 +74,12 @@ internal fun AppNavigation(
                             if (tabs != null) {
                                 DrawerTabsSection(tabs, differentTabAccounts, tabActions, closeDrawer = { scope.launch { drawer.close() } })
                             }
+                            NavigationDrawerItem(
+                                icon = { Icon(Icons.Default.Headphones, contentDescription = null) },
+                                label = { Text("离线英语听力") }, selected = false,
+                                modifier = Modifier.testTag("open_offline_listening"),
+                                onClick = { scope.launch { drawer.close(); onListening() } },
+                            )
                             NavigationDrawerItem(
                                 icon = { Icon(Icons.Default.School, contentDescription = null) },
                                 label = { Text(stringResource(R.string.navigation_practice)) }, selected = false,
