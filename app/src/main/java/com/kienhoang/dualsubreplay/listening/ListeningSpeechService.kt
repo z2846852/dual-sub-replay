@@ -64,6 +64,10 @@ internal object ListeningPlayback {
         context.startService(Intent(context, ListeningSpeechService::class.java).apply { action = ListeningSpeechService.RESUME })
     }
 
+    fun tryLocal(context: Context) {
+        context.startService(Intent(context, ListeningSpeechService::class.java).apply { action = ListeningSpeechService.TRY_LOCAL })
+    }
+
     fun stop(context: Context) {
         context.startService(Intent(context, ListeningSpeechService::class.java).apply { action = ListeningSpeechService.STOP })
     }
@@ -81,6 +85,7 @@ internal class ListeningSpeechService :
         const val PLAY = "offline-listening.PLAY"
         const val PAUSE = "offline-listening.PAUSE"
         const val RESUME = "offline-listening.RESUME"
+        const val TRY_LOCAL = "offline-listening.TRY_LOCAL"
         const val STOP = "offline-listening.STOP"
         const val CONTENT = "dialogue"
         const val LINE = "line"
@@ -126,6 +131,15 @@ internal class ListeningSpeechService :
         }
         if (intent?.action == PAUSE) {
             pauseNow()
+            return START_NOT_STICKY
+        }
+        if (intent?.action == TRY_LOCAL) {
+            if (pack != null && !running) {
+                running = true
+                ListeningPlayback.state.value =
+                    ListeningPlayback.state.value.copy(playing = true, paused = false, error = null)
+                speakLocal()
+            }
             return START_NOT_STICKY
         }
         if (intent?.action == RESUME) {
@@ -247,7 +261,15 @@ internal class ListeningSpeechService :
                 .cachedOrDownload(line.en)
             if (!running || generation != requestId) return@launch
             if (file != null && playRecording(file, requestId)) return@launch
-            speakLocal()
+            // Do not silently swap the learning voice. The user may explicitly try the phone TTS.
+            running = false
+            ListeningPlayback.state.value =
+                ListeningPlayback.state.value.copy(
+                    playing = false,
+                    paused = true,
+                    error = "未缓存且 Google 发音暂不可用",
+                    voiceName = null,
+                )
         }
     }
 
@@ -296,7 +318,12 @@ internal class ListeningSpeechService :
         val line = current.lines.getOrNull(index) ?: return stopNow()
         val utteranceId = "${current.id}:${index}:${++utteranceGeneration}"
         activeUtterance = utteranceId
-        ListeningPlayback.state.value = ListeningPlayback.state.value.copy(voiceName = voiceName ?: "本机 TTS")
+        ListeningPlayback.state.value = ListeningPlayback.state.value.copy(
+            playing = true,
+            paused = false,
+            error = null,
+            voiceName = voiceName ?: "本机 TTS",
+        )
         val result = tts?.speak(line.en, TextToSpeech.QUEUE_FLUSH, null, utteranceId)
         if (result != TextToSpeech.SUCCESS) reportError("离线发音失败")
     }
