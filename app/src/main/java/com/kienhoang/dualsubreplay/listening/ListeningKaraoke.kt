@@ -19,9 +19,15 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.ui.Alignment
+import com.kienhoang.dualsubreplay.data.LanguageAwareTokenizer
+import com.kienhoang.dualsubreplay.data.PartOfSpeech
+import com.kienhoang.dualsubreplay.data.knownWordKey
+import com.kienhoang.dualsubreplay.ui.newWordTint
+import com.kienhoang.dualsubreplay.ui.partOfSpeechColor
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -55,16 +61,14 @@ internal fun ListeningKaraokeCard(
     pack: ListeningPack,
     playback: ListeningPlaybackState,
     showText: Boolean,
-    preferNatural: Boolean,
-    onNaturalChange: (Boolean) -> Unit,
+    knownWords: Set<String>,
+    learningWords: Set<String>,
+    markNewWords: Boolean,
     onPrevious: () -> Unit,
     onNext: () -> Unit,
-    onRepeat: () -> Unit,
-    onPlay: () -> Unit,
-    onPause: () -> Unit,
-    onStop: () -> Unit,
+    onPlayPause: () -> Unit,
+    onTryLocal: () -> Unit,
     onToggleText: () -> Unit,
-    onVoices: () -> Unit,
     onWordTap: (word: String, line: ListeningLine) -> Unit,
 ) {
     val active = playback.playing && playback.packId == pack.id
@@ -90,11 +94,16 @@ internal fun ListeningKaraokeCard(
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text(
-                    if (active) "♪ 正在播放 · ${line.speaker}" else "♪ ${pack.title}",
+                    if (active) "♪ ${line.speaker}" else pack.title,
                     color = Color(0xFFFAFAFF),
                     fontWeight = FontWeight.SemiBold,
                 )
-                Text("${rowIndex + 1} / ${pack.lines.size}", color = waiting)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("${rowIndex + 1}/${pack.lines.size}", color = waiting)
+                    TextButton(onClick = onToggleText) {
+                        Text(if (showText) "隐藏" else "显示字幕", color = rainbow[0], fontSize = 12.sp)
+                    }
+                }
             }
             if (showText) {
                 ListeningRainbowWords(
@@ -105,6 +114,9 @@ internal fun ListeningKaraokeCard(
                     end = playback.spokenEnd,
                     onWordTap = { onWordTap(it, line) },
                     onDark = true,
+                    knownWords = knownWords,
+                    learningWords = learningWords,
+                    markNewWords = markNewWords,
                 )
                 Text(line.zh, color = waiting, fontSize = 14.sp)
             } else {
@@ -129,41 +141,26 @@ internal fun ListeningKaraokeCard(
                     Box(Modifier.fillMaxWidth().height(8.dp).background(Brush.horizontalGradient(rainbow)))
                 }
             }
-            Text(
-                when {
-                    active && synchronized -> "跟随实际语音位置逐词高亮"
-                    active -> "正在朗读 · 当前语音引擎未提供逐词时间戳"
-                    paused -> "已暂停 · 继续会从当前句开头朗读"
-                    playback.packId == pack.id && playback.error != null -> playback.error
-                    else -> "选择材料后点击播放"
-                },
-                color = waiting,
-                fontSize = 12.sp,
-            )
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                OutlinedButton(onClick = onPrevious, enabled = rowIndex > 0) { Text("◀ 上一句") }
-                OutlinedButton(onClick = onRepeat) { Text("↻ 重听本句") }
-                OutlinedButton(onClick = onNext, enabled = rowIndex < pack.lines.lastIndex) { Text("下一句 ▶") }
-                Button(onClick = onPlay) { Text(if (paused) "▶ 继续" else "▶ 播放") }
-                if (active) OutlinedButton(onClick = onPause) { Text("Ⅱ 暂停") }
-                OutlinedButton(onClick = onStop) { Text("■ 停止") }
-                TextButton(onClick = onToggleText) {
-                    Text(if (showText) "隐藏字幕" else "显示字幕", color = rainbow[0])
+            if (playback.packId == pack.id && playback.error != null) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("❗ " + playback.error, color = waiting, fontSize = 12.sp, modifier = Modifier.weight(1f))
+                    TextButton(onClick = onTryLocal) { Text("尝试本机", color = rainbow[0]) }
                 }
             }
-            Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text("优先自然语音", color = Color.White, fontSize = 14.sp)
-                    Text("首次联网，缓存后离线重播；失败自动回退本机 TTS", color = waiting, fontSize = 11.sp)
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                OutlinedButton(onClick = onPrevious, enabled = rowIndex > 0, modifier = Modifier.weight(1f)) {
+                    Text("◀ 上一句", fontSize = 13.sp)
                 }
-                Switch(checked = preferNatural, onCheckedChange = onNaturalChange)
-            }
-            TextButton(onClick = onVoices) {
-                Text(
-                    "当前声音 · ${playback.voiceName ?: if (preferNatural) "Google 优先" else "系统 TTS"} · 更换系统语音",
-                    color = rainbow[0],
-                    fontSize = 12.sp,
-                )
+                Button(onClick = onPlayPause, modifier = Modifier.weight(1.1f)) {
+                    Text(if (active) "Ⅱ 暂停" else "▶ 播放", fontSize = 14.sp)
+                }
+                OutlinedButton(onClick = onNext, enabled = rowIndex < pack.lines.lastIndex, modifier = Modifier.weight(1f)) {
+                    Text("下一句 ▶", fontSize = 13.sp)
+                }
             }
         }
     }
@@ -178,28 +175,44 @@ internal fun ListeningRainbowWords(
     end: Int,
     onWordTap: (String) -> Unit,
     onDark: Boolean,
+    knownWords: Set<String> = emptySet(),
+    learningWords: Set<String> = emptySet(),
+    markNewWords: Boolean = false,
 ) {
     val normal = if (onDark) waiting else Color(0xFF49546A)
+    val analyzed = remember(text) { LanguageAwareTokenizer.tokenize(text, "en") }
     FlowRow(
         horizontalArrangement = Arrangement.spacedBy(2.dp),
         verticalArrangement = Arrangement.spacedBy(1.dp),
     ) {
         visibleTokens.findAll(text).forEachIndexed { n, token ->
+            val parsed = analyzed.firstOrNull { it.startIndex <= token.range.first && it.endIndex > token.range.first }
             val word = wordPattern.find(token.value)?.value
+            val key = parsed?.let(::knownWordKey) ?: word?.let(::knownWordKey)
+            val known = key != null && key in knownWords
+            val newWord = markNewWords && key != null && key !in knownWords && key !in learningWords
             val inRange = synced && token.range.first < end && token.range.last >= start
             val finished = synced && token.range.last < start
+            val posColor = parsed?.takeIf { it.partOfSpeech != PartOfSpeech.OTHER }
+                ?.let { partOfSpeechColor(it.partOfSpeech, !onDark) }
             val tint = when {
                 inRange -> Color.White
-                finished -> rainbow[n % rainbow.size]
+                known -> Color.White
+                finished -> posColor ?: rainbow[n % rainbow.size]
                 active && synced -> normal
-                else -> rainbow[n % rainbow.size]
+                else -> posColor ?: rainbow[n % rainbow.size]
             }
             val shape = RoundedCornerShape(8.dp)
+            val backdrop = when {
+                inRange -> rainbow[n % rainbow.size].copy(alpha = 0.35f)
+                newWord -> newWordTint(rainbow[0])
+                else -> Color.Transparent
+            }
             Text(
                 token.value.trimEnd(),
                 modifier = Modifier
                     .clip(shape)
-                    .background(if (inRange) rainbow[n % rainbow.size].copy(alpha = 0.35f) else Color.Transparent)
+                    .background(backdrop)
                     .then(if (word != null) Modifier.clickable { onWordTap(word) } else Modifier)
                     .padding(horizontal = 3.dp, vertical = 3.dp),
                 color = tint,
