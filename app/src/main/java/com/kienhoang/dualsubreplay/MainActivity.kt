@@ -28,11 +28,17 @@ class MainActivity : ComponentActivity() {
     private val viewModel: AppViewModel by viewModels()
 
     override fun attachBaseContext(newBase: Context) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            AppLanguageSettings.preferSimplifiedChineseOnce(newBase)
+        }
         super.attachBaseContext(AppLanguageSettings.wrap(newBase))
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            AppLanguageSettings.preferSimplifiedChineseOnce(this)
+        }
         ProblemLog.init(cacheDir)
         enableEdgeToEdge()
         allowContentInDisplayCutout()
