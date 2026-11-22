@@ -91,7 +91,7 @@ class UpdatePatchesTest {
         val update = requireNotNull(updateFromInfo(info, installedVersionCode = 117))
         assertEquals(
             UpdatePatch(
-                "https://github.com/hoangkien1703/dual-sub-replay/releases/download/v1.8.26/update-from-v1.8.25.patch",
+                "$UPDATE_RELEASES_PAGE_URL/download/v1.8.26/update-from-v1.8.25.patch",
                 hash,
                 2_600_000,
             ),
