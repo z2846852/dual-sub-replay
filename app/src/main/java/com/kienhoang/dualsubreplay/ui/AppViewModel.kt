@@ -1254,6 +1254,9 @@ class AppViewModel internal constructor(
         meaning: String,
     ): SavedWord = savedWordFrom(learningSelectionOf(tap), meaning, online = false)
 
+    /** Reuse the word card's language, video and timestamp context for one-tap saving. */
+    internal fun learningSelectionForQuickSave(tap: WordTap): LearningWordSelection = learningSelectionOf(tap)
+
     /** [meaningInContext] for a selection in the bar above a subtitle line, before any word card opens. */
     internal suspend fun meaningInContext(tap: WordTap): ContextMeaning = meaningInContext(learningSelectionOf(tap))
 
