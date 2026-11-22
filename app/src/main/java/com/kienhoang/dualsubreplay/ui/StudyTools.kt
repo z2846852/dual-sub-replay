@@ -217,7 +217,7 @@ internal fun rememberStudyTools(
     val lineKeys = counted?.takeIf { it.first == videoId }?.second
     val comprehension = remember(lineKeys, known, learning) { lineKeys?.let { videoComprehension(it, known, learning) } }
     LaunchedEffect(settings.ankiDroid) { tools.ankiInstalled = settings.ankiDroid && tools.anki.installed() }
-    CountPlayedLines(tools, state, language, lineKeys, learning, settings)
+    CountPlayedLines(tools, state, language, learning, settings)
     SideEffect {
         tools.settings = settings
         tools.language = language
@@ -231,27 +231,33 @@ internal fun rememberStudyTools(
 }
 
 /**
- * Automatic known words: each line that plays counts its words once per video (Kien's choice,
- * 2026-10-20). A paused video counts nothing; the counts are written when it pauses or the screen goes.
+ * Count a played caption once, not its mutable position in the sliding subtitle window.
+ * Tokenize the exact current cue: a previously computed window may already be stale.
+ * Live fallback rows have no reliable stable source identity and cannot be counted.
  */
 @Composable
 private fun CountPlayedLines(
     tools: StudyTools,
     state: DualSubUiState,
     language: String?,
-    lineKeys: List<List<String>>?,
     learning: Set<String>,
     settings: StudySettings,
 ) {
     val lines = remember { LineEncounters() }
-    val counting = settings.knownWordsMode == KnownWordsMode.AUTO && language != null && lineKeys != null
+    val counting = settings.knownWordsMode == KnownWordsMode.AUTO && language != null && !state.liveFallback
     val videoId = state.activeVideoId
-    val index = state.currentIndex
+    val trackId = state.loadedTrackId
+    val cue = state.segments.getOrNull(state.currentIndex)
+    val sourceCode = state.resolvedSourceLanguage
     val playing = !state.playbackPaused
-    LaunchedEffect(counting, videoId, index, playing) {
-        if (!counting || !playing || videoId == null || language == null) return@LaunchedEffect
-        val keys = lineKeys?.getOrNull(index) ?: return@LaunchedEffect
-        if (lines.take(videoId, index)) tools.repository.encounter(language, keys, learning, settings.knownWordsAfter)
+    LaunchedEffect(counting, videoId, trackId, cue, playing) {
+        if (!counting || !playing || videoId == null || language == null || cue == null) {
+            return@LaunchedEffect
+        }
+        val keys = withContext(Dispatchers.Default) { lineWordKeys(listOf(cue), sourceCode).first() }
+        if (keys.isNotEmpty() && lines.take(videoId, trackId, cue)) {
+            tools.repository.encounter(language, keys, learning, settings.knownWordsAfter)
+        }
     }
     LaunchedEffect(playing) { if (!playing) tools.repository.flush() }
     DisposableEffect(tools) { onDispose { tools.repository.flushSoon() } }

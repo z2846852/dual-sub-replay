@@ -92,15 +92,53 @@ class KnownWordsTest {
     }
 
     @Test
-    fun eachLineCountsOncePerVideo() {
+    fun distinctCuesCountWhenTheSubtitleWindowReusesAnIndex() {
         val lines = LineEncounters()
-        assertTrue(lines.take("aaaaaaaaaaa", 3))
-        assertFalse("Replaying a line adds nothing", lines.take("aaaaaaaaaaa", 3))
-        assertTrue(lines.take("aaaaaaaaaaa", 4))
-        assertFalse(lines.take("aaaaaaaaaaa", -1))
-        assertTrue("A new video starts again", lines.take("bbbbbbbbbbb", 3))
-        assertTrue(lines.take("aaaaaaaaaaa", 3))
+        val first = SubtitleSegment(id = 3, startMs = 1_000, endMs = 2_000, originalText = "Hello world")
+        val shifted = SubtitleSegment(id = 3, startMs = 5_000, endMs = 6_000, originalText = "Another line")
+        assertTrue(lines.take("aaaaaaaaaaa", "en", first))
+        assertFalse("Replaying an identical cue adds nothing", lines.take("aaaaaaaaaaa", "en", first))
+        assertTrue("Same list index must not hide a later cue", lines.take("aaaaaaaaaaa", "en", shifted))
+        assertTrue("Another track is a separate source", lines.take("aaaaaaaaaaa", "en-GB", first))
+        assertTrue("Another video is a separate source", lines.take("bbbbbbbbbbb", "en", first))
+        assertFalse("Returning to the same video does not inflate it", lines.take("aaaaaaaaaaa", "en", first))
+        assertFalse(lines.take("aaaaaaaaaaa", "en", first.copy(startMs = -1)))
     }
+
+    @Test
+    fun mislabeledChineseCaptionCannotPolluteEnglishCounts() {
+        assertTrue(credibleEnglishSubtitle("I am thinking about that."))
+        assertTrue(credibleEnglishSubtitle("Café and English"))
+        assertFalse(credibleEnglishSubtitle("你好，这是中文字幕。"))
+        assertFalse(credibleEnglishSubtitle("Hello 世界"))
+        val captions = listOf(
+            SubtitleSegment(id = 1, startMs = 1, endMs = 2, originalText = "Hello there"),
+            SubtitleSegment(id = 2, startMs = 2, endMs = 3, originalText = "中文字幕"),
+        )
+        val keys = lineWordKeys(captions, "en")
+        assertTrue(keys[0].isNotEmpty())
+        assertTrue(keys[1].isEmpty())
+    }
+
+    @Test
+    fun archivePreservesUnsavedEncountersAndNeverOverwritesLocalCorrections() =
+        runBlocking {
+            val source = KnownWordsRepository(File(folder.root, "original"))
+            source.setKnown("en", listOf("already"), known = true)
+            source.encounter("en", listOf("thinking"), learning = emptySet(), threshold = 20)
+            val archive = source.exportArchive()
+            assertEquals(setOf("already"), archive.known["en"])
+            assertEquals(mapOf("thinking" to 1), archive.seen["en"])
+
+            val restored = KnownWordsRepository(File(folder.root, "restored"))
+            assertTrue(restored.restoreArchiveIfEmpty(archive))
+            assertEquals(setOf("already"), restored.words("en").value)
+            assertEquals(mapOf("thinking" to 1), restored.seen("en").value)
+
+            restored.setKnown("en", listOf("already"), known = false)
+            assertFalse("An old cloud checkpoint cannot undo a manual correction", restored.restoreArchiveIfEmpty(archive))
+            assertFalse("The manual correction must survive", "already" in restored.words("en").value)
+        }
 
     @Test
     fun seenCountsSurviveTheirFileAndIgnoreBrokenLines() {

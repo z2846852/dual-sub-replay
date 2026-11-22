@@ -5,18 +5,22 @@ import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.AtomicFile
 import android.util.Base64
+import com.kienhoang.dualsubreplay.data.KnownWordArchive
+import com.kienhoang.dualsubreplay.data.KnownWordsRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
 import java.security.KeyStore
+import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import javax.crypto.Cipher
@@ -122,13 +126,16 @@ internal class ListeningGitHub(
                     _status.value = "正在上传本地学习记录…"
                     verify(token)
                     val sent = pushPending(token)
-                    _status.value = "已上传 " + sent + " 条记录，正在下载对话…"
+                    _status.value = "已上传 " + sent + " 条学习事件，正在备份词汇记忆…"
+                    restoreWordMemoryOnce(token)
+                    pushWordMemory(token)
+                    _status.value = "词汇记忆已备份，正在下载对话…"
                     val packs = pullPacks(token)
                     store.putPacks(packs)
                     // Sync completion immediately queues cached natural audio for every distinct sentence.
                     // The cache worker is resumable and rate-limited; GitHub sync returns without waiting.
                     ListeningVoicePrefetch.schedule(application, store.state.value.packs)
-                    val msg = "同步完成：上传 " + sent + " 条学习事件，获取 " + packs.size + " 个对话包"
+                    val msg = "同步完成：上传 " + sent + " 条事件、备份词汇记忆，获取 " + packs.size + " 个对话包"
                     _status.value = msg
                     msg
                 } catch (e: Exception) {
@@ -197,6 +204,108 @@ internal class ListeningGitHub(
             store.markUploaded(events.map { it.getString("id") }.toSet())
         }
         return pending.size
+    }
+
+    /**
+     * Store a device-specific checkpoint. One checkpoint per device keeps concurrent phones from
+     * overwriting each other's data. This is a backup, not a claim of precise cross-device merging.
+     */
+    private suspend fun pushWordMemory(token: String) {
+        val archive = KnownWordsRepository.get(application).exportArchive()
+        val device = store.state.value.deviceId
+        require(device.matches(Regex("[0-9a-fA-F-]{36}")))
+        val path = "data/word-memory/$device.json"
+        val content = wordMemoryJson(device, archive).toString()
+        require(content.toByteArray(Charsets.UTF_8).size <= 650_000) { "词汇记忆文件过大，未上传" }
+        for (attempt in 1..4) {
+            val existing = getFile(token, path)
+            val body = JSONObject()
+                .put("message", "Back up vocabulary observations from $device")
+                .put("content", Base64.encodeToString(content.toByteArray(Charsets.UTF_8), Base64.NO_WRAP))
+                .put("branch", "main")
+            existing?.second?.let { body.put("sha", it) }
+            try {
+                request("PUT", base + "/contents/" + path, token, body.toString())
+                return
+            } catch (e: GitHubHttpException) {
+                if (e.status !in listOf(409, 412, 422) || attempt == 4) throw e
+            }
+        }
+    }
+
+    /**
+     * On a fresh installation only, recover the newest cloud checkpoint if the word store is empty.
+     * Never merge over existing local corrections or replace current learning with old counters.
+     */
+    private suspend fun restoreWordMemoryOnce(token: String) {
+        if (preferences.getBoolean("word_memory_restore_checked_v1", false)) return
+        val remote = newestWordMemory(token)
+        if (remote != null) KnownWordsRepository.get(application).restoreArchiveIfEmpty(remote)
+        preferences.edit().putBoolean("word_memory_restore_checked_v1", true).commit()
+    }
+
+    private fun newestWordMemory(token: String): KnownWordArchive? {
+        val entries = try {
+            JSONArray(request("GET", base + "/contents/data/word-memory?ref=main", token))
+        } catch (e: GitHubHttpException) {
+            if (e.status == 404) return null else throw e
+        }
+        // A normal user has a few devices. Bound remote reads rather than downloading an
+        // unbounded directory of user-controlled files.
+        var newest: Instant? = null
+        var archive: KnownWordArchive? = null
+        for (i in 0 until minOf(entries.length(), 20)) {
+            val name = entries.optJSONObject(i)?.optString("name").orEmpty()
+            if (!name.matches(Regex("[0-9a-fA-F-]{36}\\.json"))) continue
+            val text = getFile(token, "data/word-memory/$name")?.first ?: continue
+            val payload = runCatching { JSONObject(text) }.getOrNull() ?: continue
+            if (payload.optInt("schema_version") != 1) continue
+            val date = runCatching { Instant.parse(payload.optString("updated_at")) }.getOrNull() ?: continue
+            if (newest?.let { !date.isAfter(it) } == true) continue
+            val parsed = runCatching { parseWordMemory(payload) }.getOrNull() ?: continue
+            newest = date
+            archive = parsed
+        }
+        return archive
+    }
+
+    private fun wordMemoryJson(device: String, archive: KnownWordArchive): JSONObject =
+        JSONObject()
+            .put("schema_version", 1)
+            .put("device_id", device)
+            .put("updated_at", Instant.now().toString())
+            .put(
+                "known",
+                JSONObject().apply {
+                    archive.known.toSortedMap().forEach { (language, words) ->
+                        put(language, JSONArray(words.sorted()))
+                    }
+                },
+            ).put(
+                "seen",
+                JSONObject().apply {
+                    archive.seen.toSortedMap().forEach { (language, counts) ->
+                        put(language, JSONObject().apply {
+                            counts.toSortedMap().forEach { (word, count) -> put(word, count) }
+                        })
+                    }
+                },
+            )
+
+    private fun parseWordMemory(payload: JSONObject): KnownWordArchive {
+        val knownJson = payload.optJSONObject("known") ?: JSONObject()
+        val seenJson = payload.optJSONObject("seen") ?: JSONObject()
+        val known = knownJson.keys().asSequence().associateWith { language ->
+            val values = knownJson.optJSONArray(language) ?: JSONArray()
+            require(values.length() <= 100_000)
+            (0 until values.length()).map { values.getString(it) }.toSet()
+        }
+        val seen = seenJson.keys().asSequence().associateWith { language ->
+            val values = seenJson.optJSONObject(language) ?: JSONObject()
+            require(values.length() <= 100_000)
+            values.keys().asSequence().associateWith { values.getInt(it) }
+        }
+        return KnownWordArchive(known, seen)
     }
 
     private fun pullPacks(token: String): List<ListeningPack> {

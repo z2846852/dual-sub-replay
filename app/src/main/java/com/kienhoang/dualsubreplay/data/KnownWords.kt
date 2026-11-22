@@ -48,12 +48,39 @@ internal fun knownWordLanguage(code: String?): String? =
         ?.lowercase(Locale.ROOT)
         ?.takeIf { it.matches(Regex("[a-z]{2,3}")) }
 
-/** The word keys of each subtitle line, in order and with repeats. */
+/**
+ * Do not interpret Chinese or other non-Latin subtitles as English merely because a provider
+ * labelled their caption track "en". Conservative filtering is preferable to poisoning a
+ * permanent word history. This is script validation, not full language identification:
+ * Spanish and other Latin-script languages still need a better detector.
+ */
+internal fun credibleEnglishSubtitle(text: String): Boolean {
+    var latinLetters = 0
+    var otherLetters = 0
+    text.forEach { char ->
+        if (char.isLetter()) {
+            if (Character.UnicodeScript.of(char.code) == Character.UnicodeScript.LATIN) {
+                latinLetters++
+            } else {
+                otherLetters++
+            }
+        }
+    }
+    return latinLetters > 0 && otherLetters == 0
+}
+
+/** The word keys of each subtitle line, in order and with repeats. Unreliable English rows are ignored. */
 internal fun lineWordKeys(
     segments: List<SubtitleSegment>,
     languageCode: String?,
 ): List<List<String>> =
-    segments.map { segment -> LanguageAwareTokenizer.tokenize(segment.originalText, languageCode).mapNotNull(::knownWordKey) }
+    segments.map { segment ->
+        if (knownWordLanguage(languageCode) == "en" && !credibleEnglishSubtitle(segment.originalText)) {
+            emptyList()
+        } else {
+            LanguageAwareTokenizer.tokenize(segment.originalText, languageCode).mapNotNull(::knownWordKey)
+        }
+    }
 
 /** How much of a video's words are known, from [lineWordKeys]. */
 internal data class VideoComprehension(
@@ -131,23 +158,24 @@ internal fun countEncounters(
 }
 
 /**
- * Which lines of the open video were counted already: each line counts once per video, so replaying
- * it, seeking back or Repeat each line adds nothing.
+ * The original player slides its subtitle window and reuses list indices. An index is therefore
+ * not a subtitle identity: using it silently drops later lines. Use absolute cue times, original
+ * text, video and caption track instead. Keep keys for this app session so seeking/repeats, and
+ * switching away and back to a video, cannot inflate the counters.
  */
 internal class LineEncounters {
-    private var videoId: String? = null
-    private val lines = HashSet<Int>()
+    private val lines = HashSet<String>()
 
-    /** True the first time line [index] of [videoId] is taken; a new video starts again. */
     fun take(
         videoId: String,
-        index: Int,
+        trackId: String?,
+        cue: SubtitleSegment,
     ): Boolean {
-        if (videoId != this.videoId) {
-            this.videoId = videoId
-            lines.clear()
-        }
-        return index >= 0 && lines.add(index)
+        if (videoId.isBlank() || cue.startMs < 0 || cue.endMs <= cue.startMs) return false
+        return lines.add(
+            listOf(videoId, trackId.orEmpty(), cue.startMs.toString(), cue.endMs.toString(), cue.originalText)
+                .joinToString("\u0000"),
+        )
     }
 }
 
@@ -167,6 +195,15 @@ internal fun seenCountsText(counts: Map<String, Int>): String =
         .joinToString("\n") { "${it.key}\t${it.value}" }
 
 /**
+ * A portable checkpoint of the known-word list and incomplete exposure counters. Exposure counts
+ * are observations, NOT evidence that the learner can recognize the word by ear.
+ */
+internal data class KnownWordArchive(
+    val known: Map<String, Set<String>>,
+    val seen: Map<String, Map<String, Int>>,
+)
+
+/**
  * The words the user marked as known, one list per language in `files/known-words/<language>.txt`
  * (one key per line), and for Automatic known words how often each word not known yet was seen, in
  * `<language>.seen`. Separate from preferences, so Reset all settings keeps them, like saved words.
@@ -178,6 +215,8 @@ internal class KnownWordsRepository internal constructor(
     private val seenLists = ConcurrentHashMap<String, MutableStateFlow<Map<String, Int>>>()
     private val loaded = ConcurrentHashMap.newKeySet<String>()
     private val unsaved = ConcurrentHashMap.newKeySet<String>()
+    // Lives outside the cleared word directory so a manual reset is not undone by first cloud sync.
+    private val manualEditMarker = File(directory.parentFile, ".${directory.name}-manually-edited")
     private val mutex = Mutex()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val _total = MutableStateFlow<Int?>(null)
@@ -273,6 +312,7 @@ internal class KnownWordsRepository internal constructor(
             write(language, updated)
             flow.value = updated
             // Marked either way, a word's count starts again from nothing.
+            manualEditMarker.writeText("Manual known-word correction", Charsets.UTF_8)
             val seen = seenList(language)
             if (valid.any(seen.value::containsKey)) {
                 seen.value = seen.value - valid.toSet()
@@ -288,12 +328,68 @@ internal class KnownWordsRepository internal constructor(
         withContext(Dispatchers.IO) {
             mutex.withLock {
                 directory.listFiles()?.forEach { it.delete() }
+                manualEditMarker.writeText("Known words deliberately cleared", Charsets.UTF_8)
                 lists.values.forEach { it.value = emptySet() }
                 seenLists.values.forEach { it.value = emptyMap() }
                 unsaved.clear()
                 _total.value = 0
             }
         }
+
+    /**
+     * Export a complete checkpoint including counters not yet flushed to disk.
+     * A cloud backup cannot silently omit the last 30 seconds of listening.
+     */
+    suspend fun exportArchive(): KnownWordArchive =
+        withContext(Dispatchers.IO) {
+            mutex.withLock {
+                val known = LinkedHashMap<String, Set<String>>()
+                val seen = LinkedHashMap<String, Map<String, Int>>()
+                storedLanguages().forEach { language ->
+                    knownList(language).value.takeIf { it.isNotEmpty() }?.let { known[language] = it.toSet() }
+                    seenList(language).value.takeIf { it.isNotEmpty() }?.let { seen[language] = it.toMap() }
+                }
+                KnownWordArchive(known, seen)
+            }
+        }
+
+    /**
+     * Restoring is deliberately non-destructive. Never overwrite existing local observations
+     * or manually corrected known words with an older cloud checkpoint.
+     */
+    suspend fun restoreArchiveIfEmpty(archive: KnownWordArchive): Boolean =
+        withContext(Dispatchers.IO) {
+            mutex.withLock {
+                // A user may have deliberately cleared all known words before connecting GitHub.
+                if (manualEditMarker.isFile) return@withLock false
+                val languages = storedLanguages()
+                if (languages.any { knownList(it).value.isNotEmpty() || seenList(it).value.isNotEmpty() }) {
+                    return@withLock false
+                }
+                val incomingLanguages = (archive.known.keys + archive.seen.keys).toSet()
+                    .filter { knownWordLanguage(it) == it }
+                if (incomingLanguages.isEmpty()) return@withLock false
+                require(archive.known.values.sumOf { it.size } <= 100_000) { "Word backup is too large" }
+                incomingLanguages.forEach { language ->
+                    val words = archive.known[language].orEmpty().mapNotNull(::knownWordKey).toSet()
+                    val counts = archive.seen[language].orEmpty().mapNotNull { (raw, count) ->
+                        val key = knownWordKey(raw)
+                        if (key != null && key !in words && count in 1..MAX_SEEN_COUNT) key to count else null
+                    }.toMap()
+                    write(language, words)
+                    writeSeen(language, counts)
+                    knownList(language).value = words
+                    seenList(language).value = counts
+                }
+                _total.value = incomingLanguages.sumOf { knownList(it).value.size }
+                true
+            }
+        }
+
+    private fun storedLanguages(): Set<String> =
+        (directory.listFiles().orEmpty().mapNotNull { file ->
+            file.name.takeIf { it.endsWith(".txt") || it.endsWith(".seen") }?.substringBeforeLast('.')
+        } + lists.keys + seenLists.keys).filter { knownWordLanguage(it) == it }.toSet()
 
     /** Every language's known words, read from their files (Backup & sharing). */
     suspend fun allKnown(): Map<String, Set<String>> =

@@ -197,7 +197,7 @@ internal fun ListeningScreen(
                                     }
                                     Text("连接私有 z2846852/english 仓库", style = MaterialTheme.typography.titleSmall)
                                     Text(
-                                        "PAT 只保存在本机 Keystore 加密文件中。首次连接联网验证，此后每天首次打开自动同步一次。",
+                                        "PAT 仅在本机加密保存。每天首次打开时尝试同步学习事件和词汇记忆；换手机且本地词库为空时可恢复云端备份。",
                                         style = MaterialTheme.typography.bodySmall,
                                     )
                                     if (!connected) {
@@ -266,11 +266,11 @@ internal fun ListeningScreen(
                     item {
                         HorizontalDivider()
                         Text(
-                            "听力记忆训练（FSRS-6，90% 目标保留率）",
+                            "听辨复习 · 从听懂开始",
                             style = MaterialTheme.typography.titleSmall,
                         )
                         Text(
-                            "只在没有看文字的情况下，对自己的首次识别进行评分。普通连续听力不会自动刷分。",
+                            "先盲听，再判断自己是否真正认出。听过很多次只代表接触过，不等于已经听懂。",
                             style = MaterialTheme.typography.bodySmall,
                         )
                         if (!reviewMode) {
