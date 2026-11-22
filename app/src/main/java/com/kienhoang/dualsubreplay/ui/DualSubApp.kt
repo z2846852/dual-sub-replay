@@ -103,6 +103,8 @@ import com.kienhoang.dualsubreplay.translation.TranslationLanguages
 import com.kienhoang.dualsubreplay.ui.theme.DualSubTheme
 import com.kienhoang.dualsubreplay.ui.theme.brandColors
 import com.kienhoang.dualsubreplay.ui.theme.brandTint
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.util.Locale
@@ -130,8 +132,20 @@ fun DualSubApp(
     val listeningContext = LocalContext.current.applicationContext
     val listeningStore = remember(listeningContext) { ListeningStore(listeningContext) }
     val listeningGitHub = remember(listeningStore) { ListeningGitHub(listeningContext, listeningStore) }
-    // One automatic attempt on the first app launch each Beijing day, only when PAT is configured.
-    LaunchedEffect(listeningGitHub) { listeningGitHub.autoSyncOnceDaily() }
+    // The YouTube Practice vocabulary is canonical: every saved English word becomes a local
+    // pending learning event, including the words saved before this feature was installed.
+    LaunchedEffect(savedWords) {
+        withContext(Dispatchers.IO) { listeningStore.importSavedVocabulary(savedWords) }
+    }
+    // Import older saved words before the daily GitHub upload; do not depend on the order in
+    // which the ViewModel and Compose finish their initial database refresh.
+    LaunchedEffect(listeningGitHub) {
+        viewModel.vocabulary.refresh()
+        withContext(Dispatchers.IO) {
+            listeningStore.importSavedVocabulary(viewModel.vocabulary.words.value)
+        }
+        listeningGitHub.autoSyncOnceDaily()
+    }
     var showListening by remember { mutableStateOf(false) }
     val webController = rememberYouTubeWebController()
     val pronouncer = rememberWordPronouncer()
