@@ -252,7 +252,7 @@ internal class ListeningGitHub(
         }
         // A normal user has a few devices. Bound remote reads rather than downloading an
         // unbounded directory of user-controlled files.
-        var newest = ""
+        var newest: Instant? = null
         var archive: KnownWordArchive? = null
         for (i in 0 until minOf(entries.length(), 20)) {
             val name = entries.optJSONObject(i)?.optString("name").orEmpty()
@@ -260,8 +260,8 @@ internal class ListeningGitHub(
             val text = getFile(token, "data/word-memory/$name")?.first ?: continue
             val payload = runCatching { JSONObject(text) }.getOrNull() ?: continue
             if (payload.optInt("schema_version") != 1) continue
-            val date = payload.optString("updated_at")
-            if (runCatching { Instant.parse(date) }.isFailure || date <= newest) continue
+            val date = runCatching { Instant.parse(payload.optString("updated_at")) }.getOrNull() ?: continue
+            if (newest?.let { !date.isAfter(it) } == true) continue
             val parsed = runCatching { parseWordMemory(payload) }.getOrNull() ?: continue
             newest = date
             archive = parsed
