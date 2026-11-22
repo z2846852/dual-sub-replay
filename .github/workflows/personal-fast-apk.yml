@@ -1,0 +1,86 @@
+name: Personal Fast APK
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: personal-fast-apk
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    if: github.repository == 'z2846852/dual-sub-replay'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - name: Android SDK
+        run: sdkmanager "platforms;android-37.0" "build-tools;36.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Use personal fixed-signature keystore
+        run: |
+          set -euo pipefail
+          keystore="$RUNNER_TEMP/dualsub-fork-release.p12"
+          base64 --decode signing/dualsub-fork-release.p12.b64 > "$keystore"
+          chmod 600 "$keystore"
+          keytool -list -storetype PKCS12 -keystore "$keystore" -storepass "dualsub-personal-public-signing-v1" -alias dualsubfork >/dev/null
+          echo "ANDROID_RELEASE_STORE_FILE=$keystore" >> "$GITHUB_ENV"
+          echo "ANDROID_RELEASE_STORE_PASSWORD=dualsub-personal-public-signing-v1" >> "$GITHUB_ENV"
+          echo "ANDROID_RELEASE_KEY_ALIAS=dualsubfork" >> "$GITHUB_ENV"
+          echo "ANDROID_RELEASE_KEY_PASSWORD=dualsub-personal-public-signing-v1" >> "$GITHUB_ENV"
+      - name: Build once, no tests
+        run: |
+          set -euo pipefail
+          version="3.0.$GITHUB_RUN_NUMBER"
+          version_code=$(( 200000 + GITHUB_RUN_NUMBER ))
+          bash ./gradlew :app:assembleRelease -PforkRelease=true "-PforkVersionName=$version" "-PforkVersionCode=$version_code" -PrequireReleaseSigning=true --stacktrace
+          mkdir -p dist
+          cp app/build/outputs/apk/release/app-release.apk dist/DualSub-Replay.apk
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs dist/DualSub-Replay.apk
+          badge="$("$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging dist/DualSub-Replay.apk | head -1)"
+          [[ "$badge" == *"name='com.z2846852.dualsubreplay'"* ]]
+          [[ "$badge" == *"versionCode='$version_code'"* ]]
+      - uses: actions/upload-artifact@v4
+        with:
+          name: personal-signed-apk
+          path: dist/DualSub-Replay.apk
+      - name: Publish APK and update manifest
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          version="3.0.$GITHUB_RUN_NUMBER"
+          code=$((200000 + GITHUB_RUN_NUMBER))
+          tag="v$version"
+          mkdir -p old-releases dist/patches
+          gh release list --limit 10 --json tagName --jq '.[].tagName' | while read -r old; do
+            [[ "$old" =~ ^v3[.]0[.][0-9]+$ ]] || continue
+            mkdir -p "old-releases/$old"
+            gh release download "$old" --dir "old-releases/$old" --pattern DualSub-Replay.apk --pattern update-info.json >/dev/null 2>&1 || true
+          done
+          python3 tools/apk_patch.py release --apk dist/DualSub-Replay.apk --old-releases old-releases --output-dir dist/patches --entries dist/patches.json
+          python3 - <<'PY'
+          import hashlib,json,pathlib,os
+          a=pathlib.Path('dist/DualSub-Replay.apk')
+          v='3.0.'+os.environ['GITHUB_RUN_NUMBER']
+          c=200000+int(os.environ['GITHUB_RUN_NUMBER'])
+          h=hashlib.sha256(a.read_bytes()).hexdigest()
+          patches=json.loads(pathlib.Path('dist/patches.json').read_text())
+          data=dict(schema=1,version=v,version_code=c,minimum_safe_version_code=0,apk='DualSub-Replay.apk',sha256=h,size=a.stat().st_size,patches=patches)
+          pathlib.Path('dist/update-info.json').write_text(json.dumps(data,indent=2)+'\n')
+          pathlib.Path('dist/DualSub-Replay.apk.sha256').write_text(h+'  DualSub-Replay.apk\n')
+          PY
+          gh release create "$tag" dist/DualSub-Replay.apk dist/DualSub-Replay.apk.sha256 dist/update-info.json dist/patches/*.patch --target "$GITHUB_SHA" --title "DualSub 个人版 $tag" --notes "单次编译，无模拟器等待。App 内可检查更新，支持跨版本差分，失败回退完整包。" --latest
+          echo "https://github.com/$GITHUB_REPOSITORY/releases/latest/download/DualSub-Replay.apk"
