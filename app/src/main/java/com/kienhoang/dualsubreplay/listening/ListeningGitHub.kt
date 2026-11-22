@@ -88,6 +88,7 @@ internal class ListeningGitHub(
     private val store: ListeningStore,
 ) {
     private val vault = ListeningVault(context)
+    private val application = context.applicationContext
     private val mutex = Mutex()
     private val preferences = context.getSharedPreferences("offline_listening_sync", Context.MODE_PRIVATE)
     private val base = "https://api.github.com/repos/z2846852/english"
@@ -124,6 +125,9 @@ internal class ListeningGitHub(
                     _status.value = "已上传 " + sent + " 条记录，正在下载对话…"
                     val packs = pullPacks(token)
                     store.putPacks(packs)
+                    // Sync completion immediately queues cached natural audio for every distinct sentence.
+                    // The cache worker is resumable and rate-limited; GitHub sync returns without waiting.
+                    ListeningVoicePrefetch.schedule(application, store.state.value.packs)
                     val msg = "同步完成：上传 " + sent + " 条学习事件，获取 " + packs.size + " 个对话包"
                     _status.value = msg
                     msg
