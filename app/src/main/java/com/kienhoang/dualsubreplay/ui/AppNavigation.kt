@@ -33,6 +33,7 @@ import kotlinx.coroutines.launch
 internal val navigationMenuOpen = MutableStateFlow(false)
 
 @Composable
+@Suppress("LongMethod")
 internal fun AppNavigation(
     onPractice: () -> Unit,
     onListening: () -> Unit = {},
