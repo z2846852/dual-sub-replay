@@ -530,7 +530,8 @@ internal fun SelectableSubtitleText(
                     onPronounce = { spoken?.let { controller.actions.pronounce(it, translated) } },
                     onSave = controller.actions.quickSave?.let { save ->
                         val tap = phraseTap(text, tokens, words, segment, translated)
-                        { meaning: String -> save(tap, meaning) }
+                        val callback: suspend (String) -> Unit = { meaning -> save(tap, meaning) }
+                        callback
                     },
                     onOpenGoogleTranslate = {
                         controller.actions.openGoogleTranslate(text.substring(start, end))
@@ -869,6 +870,7 @@ private fun PhraseActionBar(
                                 if (saved) Icons.Default.BookmarkAdded else Icons.Default.BookmarkAdd,
                                 R.string.word_card_save_to_practice,
                                 "save",
+                                enabled = !saved && !saving,
                                 onClick = {
                                     if (!saved && !saving) {
                                         saving = true
@@ -886,7 +888,7 @@ private fun PhraseActionBar(
                                         }
                                     }
                                 },
-                            ).apply { enabled = !saved && !saving }
+                            )
                         },
                         anki?.action(scope, meaning, meaningInSentenceFirst),
                         PhraseAction(
