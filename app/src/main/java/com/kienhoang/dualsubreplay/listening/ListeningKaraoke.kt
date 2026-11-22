@@ -196,8 +196,8 @@ internal fun ListeningRainbowWords(
             val posColor = parsed?.takeIf { it.partOfSpeech != PartOfSpeech.OTHER }
                 ?.let { partOfSpeechColor(it.partOfSpeech, !onDark) }
             val tint = when {
-                inRange -> Color.White
-                known -> Color.White
+                inRange -> if (onDark) Color.White else Color(0xFF182039)
+                known -> if (onDark) Color.White else normal
                 finished -> posColor ?: rainbow[n % rainbow.size]
                 active && synced -> normal
                 else -> posColor ?: rainbow[n % rainbow.size]
