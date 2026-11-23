@@ -55,8 +55,8 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.kienhoang.dualsubreplay.data.AnalyzedToken
 import com.kienhoang.dualsubreplay.data.ChineseMorphology
-import com.kienhoang.dualsubreplay.data.PartOfSpeech
 import com.kienhoang.dualsubreplay.data.LanguageAwareTokenizer
+import com.kienhoang.dualsubreplay.data.PartOfSpeech
 import com.kienhoang.dualsubreplay.data.SavedWord
 import com.kienhoang.dualsubreplay.data.VocabularyRepository
 import com.kienhoang.dualsubreplay.data.savedWordId
@@ -137,7 +137,10 @@ internal fun BilingualTranslateScreen(
     val sourceLabel = if (source == "zh") "中文" else "英文"
     val targetLabel = if (target == "zh") "中文" else "英文"
 
-    fun editText(text: String, manualSource: String? = null) {
+    fun editText(
+        text: String,
+        manualSource: String? = null,
+    ) {
         sourceText = text
         forcedSource = manualSource
         translatedText = ""
@@ -163,7 +166,8 @@ internal fun BilingualTranslateScreen(
             try {
                 val id = savedWordId(word, pick.language, meaningLanguage, null, null)
                 val existing = vocabulary.words.value.firstOrNull { it.id == id }
-                val saved = SavedWord(
+                val saved =
+                    SavedWord(
                     id = id,
                     word = word,
                     reading = null,
@@ -183,13 +187,14 @@ internal fun BilingualTranslateScreen(
                 snackbar.showSnackbar("已加入生词本：" + word)
                 if (saved.meaning.isBlank()) {
                     // Save immediately: dictionary/network failures must not lose a learner's selection.
-                    val meaning = try {
-                        bilingualTranslate(google, local, pick.language, meaningLanguage, word).first
-                    } catch (cancelled: CancellationException) {
-                        throw cancelled
-                    } catch (_: Exception) {
-                        ""
-                    }
+                    val meaning =
+                        try {
+                            bilingualTranslate(google, local, pick.language, meaningLanguage, word).first
+                        } catch (cancelled: CancellationException) {
+                            throw cancelled
+                        } catch (_: Exception) {
+                            ""
+                        }
                     if (meaning.isNotBlank()) {
                         vocabulary.update(id) { old ->
                             if (old.meaning.isBlank()) old.copy(meaning = meaning) else old
@@ -244,15 +249,20 @@ internal fun BilingualTranslateScreen(
     }
 
     LaunchedEffect(pickedWord) {
-        val pick = pickedWord ?: run {
-            pickedMeaning = ""
-            return@LaunchedEffect
-        }
+        val pick =
+            pickedWord ?: run {
+                pickedMeaning = ""
+                return@LaunchedEffect
+            }
         val toLanguage = if (pick.language == "en") "zh" else "en"
-        val id = savedWordId(
-            if (pick.language == "en") pick.word.lowercase(Locale.ROOT) else pick.word,
-            pick.language, toLanguage, null, null,
-        )
+        val id =
+            savedWordId(
+                if (pick.language == "en") pick.word.lowercase(Locale.ROOT) else pick.word,
+                pick.language,
+                toLanguage,
+                null,
+                null,
+            )
         pickedMeaning = savedWords.firstOrNull { it.id == id }?.meaning.orEmpty()
         if (pickedMeaning.isBlank()) {
             try {
@@ -395,10 +405,14 @@ internal fun BilingualTranslateScreen(
                     if (pickedWord != null) {
                         val pick = pickedWord!!
                         val otherLanguage = if (pick.language == "en") "zh" else "en"
-                        val id = savedWordId(
-                            if (pick.language == "en") pick.word.lowercase(Locale.ROOT) else pick.word,
-                            pick.language, otherLanguage, null, null,
-                        )
+                        val id =
+                            savedWordId(
+                                if (pick.language == "en") pick.word.lowercase(Locale.ROOT) else pick.word,
+                                pick.language,
+                                otherLanguage,
+                                null,
+                                null,
+                            )
                         val isSaved = savedWords.any { it.id == id }
                         Card(Modifier.fillMaxWidth()) {
                             Column(
@@ -460,42 +474,50 @@ private fun BilingualInteractiveText(
     onLongPress: (BilingualWordPick) -> Unit,
 ) {
     val dictionaryRevision by ChineseMorphology.revision.collectAsState()
-    val tokens = remember(text, language, dictionaryRevision) {
-        bilingualWordTokens(text, language)
-    }
+    val tokens =
+        remember(text, language, dictionaryRevision) {
+            bilingualWordTokens(text, language)
+        }
     var layout by remember(text, language) { mutableStateOf<TextLayoutResult?>(null) }
     val selectedBackground = MaterialTheme.colorScheme.primaryContainer
-    val highlightedText = buildAnnotatedString {
-        append(text)
-        tokens.filter { selected?.word == it.text && selected.language == language }.forEach { token ->
-            addStyle(
-                SpanStyle(background = selectedBackground),
-                token.startIndex,
-                token.endIndex,
-            )
+    val highlightedText =
+        buildAnnotatedString {
+            append(text)
+            tokens.filter { selected?.word == it.text && selected.language == language }.forEach { token ->
+                addStyle(
+                    SpanStyle(background = selectedBackground),
+                    token.startIndex,
+                    token.endIndex,
+                )
+            }
         }
-    }
     Text(
         text = highlightedText,
         style = MaterialTheme.typography.bodyLarge,
-        modifier = Modifier.fillMaxWidth().pointerInput(text, language, tokens) {
-            detectTapGestures(
-                onTap = { position ->
-                    bilingualWordAtPosition(tokens, layout, position)?.let { onTap(BilingualWordPick(it, language)) }
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .pointerInput(text, language, tokens) {
+                    detectTapGestures(
+                        onTap = { position ->
+                            bilingualWordAtPosition(tokens, layout, position)?.let { onTap(BilingualWordPick(it, language)) }
+                        },
+                        onLongPress = { position ->
+                            bilingualWordAtPosition(tokens, layout, position)?.let {
+                                onLongPress(BilingualWordPick(it, language))
+                            }
+                        },
+                    )
                 },
-                onLongPress = { position ->
-                    bilingualWordAtPosition(tokens, layout, position)?.let {
-                        onLongPress(BilingualWordPick(it, language))
-                    }
-                },
-            )
-        },
         onTextLayout = { layout = it },
     )
 }
 
 /** Match token indices to the rendered string; a missing Chinese lexicon still permits character taps. */
-internal fun bilingualWordTokens(text: String, language: String): List<AnalyzedToken> {
+internal fun bilingualWordTokens(
+    text: String,
+    language: String,
+): List<AnalyzedToken> {
     if (language == "zh" && ChineseMorphology.analyze(text) == null) {
         return text.mapIndexedNotNull { index, char ->
             if (char.code in 0x3400..0x9FFF) {
