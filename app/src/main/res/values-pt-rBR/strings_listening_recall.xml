@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="listening_continuous">Reprodução contínua</string>
+    <string name="listening_recall">Repetir frase</string>
+    <string name="listening_recall_hidden">Ouça sem ver a frase</string>
+    <string name="listening_recall_playing">Reproduzindo a frase</string>
+    <string name="listening_recall_waiting">A frase terminou. Repita abaixo.</string>
+    <string name="listening_recall_hint">Use o microfone do teclado para falar em inglês</string>
+    <string name="listening_recall_placeholder">Digite ou dite o que ouviu</string>
+    <string name="listening_recall_check">Conferir</string>
+    <string name="listening_recall_replay">Ouvir novamente</string>
+    <string name="listening_recall_retry">Tentar novamente</string>
+    <string name="listening_recall_previous">Anterior</string>
+    <string name="listening_recall_next">Próxima</string>
+    <string name="listening_recall_expected">Original</string>
+    <string name="listening_recall_actual">Sua repetição</string>
+    <string name="listening_recall_perfect">Todas as palavras conferem</string>
+    <string name="listening_recall_differences">%1$d diferenças nas palavras</string>
+    <string name="listening_recall_missing">[faltando]</string>
+    <string name="listening_recall_try_local">Usar voz do aparelho</string>
+    <string name="listening_recall_note">Compara apenas o texto reconhecido, não a pronúncia.</string>
+</resources>
