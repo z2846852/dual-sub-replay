@@ -290,9 +290,10 @@ internal fun ListeningRecallCard(
                     val accessibleModifier =
                         clickableModifier.semantics {
                             contentDescription = "${i + 1}: $label"
-                        }.testTag("recall_segment_${i + 1}")
+                        }
+                    val taggedModifier = accessibleModifier.testTag("recall_segment_${i + 1}")
                     Box(
-                        modifier = accessibleModifier,
+                        modifier = taggedModifier,
                         contentAlignment = Alignment.Center,
                     ) {
                         Text(
