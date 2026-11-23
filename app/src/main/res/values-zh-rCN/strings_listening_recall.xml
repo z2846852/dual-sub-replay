@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="listening_continuous">连续播放</string>
+    <string name="listening_recall">逐句复述</string>
+    <string name="listening_recall_hidden">盲听中 · 隐藏原句</string>
+    <string name="listening_recall_playing">正在播放本句</string>
+    <string name="listening_recall_waiting">本句已播放完，请在下方复述</string>
+    <string name="listening_recall_hint">用手机输入法的麦克风说英文，再点击核对</string>
+    <string name="listening_recall_placeholder">输入或语音复述听到的句子</string>
+    <string name="listening_recall_check">核对</string>
+    <string name="listening_recall_replay">重听本句</string>
+    <string name="listening_recall_retry">再试一次</string>
+    <string name="listening_recall_previous">上一句</string>
+    <string name="listening_recall_next">下一句</string>
+    <string name="listening_recall_expected">原句</string>
+    <string name="listening_recall_actual">你的复述</string>
+    <string name="listening_recall_perfect">词汇完全一致</string>
+    <string name="listening_recall_differences">%1$d 处词汇差异</string>
+    <string name="listening_recall_missing">〔漏词〕</string>
+    <string name="listening_recall_try_local">尝试本机语音</string>
+    <string name="listening_recall_note">这里只对照语音转写文字，不能判断真实发音。</string>
+</resources>
