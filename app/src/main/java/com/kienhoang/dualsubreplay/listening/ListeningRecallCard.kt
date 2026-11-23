@@ -273,26 +273,26 @@ internal fun ListeningRecallCard(
                             status.failed -> stringResource(R.string.listening_recall_status_failed)
                             else -> stringResource(R.string.listening_recall_status_new)
                         }
+                    val shape = RoundedCornerShape(5.dp)
+                    val sizedModifier = Modifier.width(19.dp).height(27.dp)
+                    val tintedModifier = sizedModifier.clip(shape).background(bg)
+                    val outlinedModifier =
+                        tintedModifier.border(
+                            if (i == index) 2.dp else 0.dp,
+                            MaterialTheme.colorScheme.onSurface,
+                            shape,
+                        )
+                    val clickableModifier =
+                        outlinedModifier.clickable {
+                            onSaveDraft(answer)
+                            onPlayLine(i)
+                        }
+                    val accessibleModifier =
+                        clickableModifier.semantics {
+                            contentDescription = "${i + 1}: $label"
+                        }.testTag("recall_segment_${i + 1}")
                     Box(
-                        modifier =
-                            Modifier
-                                .width(19.dp)
-                                .height(27.dp)
-                                .clip(RoundedCornerShape(5.dp))
-                                .background(bg)
-                                .border(
-                                    if (i == index) 2.dp else 0.dp,
-                                    MaterialTheme.colorScheme.onSurface,
-                                    RoundedCornerShape(5.dp),
-                                )
-                                .clickable {
-                                    onSaveDraft(answer)
-                                    onPlayLine(i)
-                                }
-                                .semantics {
-                                    contentDescription = "${i + 1}: $label"
-                                }
-                                .testTag("recall_segment_${i + 1}"),
+                        modifier = accessibleModifier,
                         contentAlignment = Alignment.Center,
                     ) {
                         Text(
@@ -364,14 +364,14 @@ private fun RecallDifferenceRow(
                 if (expected) part.expected else part.actual ?: if (part.expected != null) missing else null
             if (shown != null) {
                 val clickable = if (expected) Modifier.clickable { onTargetTap(shown) } else Modifier
+                val coloredModifier =
+                    Modifier
+                        .clip(RoundedCornerShape(5.dp))
+                        .background(if (part.matches) Color.Transparent else errorBackground)
+                val wordModifier = coloredModifier.then(clickable).padding(horizontal = 3.dp, vertical = 2.dp)
                 Text(
                     text = shown,
-                    modifier =
-                        Modifier
-                            .clip(RoundedCornerShape(5.dp))
-                            .background(if (part.matches) Color.Transparent else errorBackground)
-                            .then(clickable)
-                            .padding(horizontal = 3.dp, vertical = 2.dp),
+                    modifier = wordModifier,
                     color = if (part.matches) regularColor else errorColor,
                     style = MaterialTheme.typography.bodyLarge,
                 )
