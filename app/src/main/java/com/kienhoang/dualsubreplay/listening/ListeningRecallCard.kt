@@ -54,9 +54,10 @@ internal fun ListeningRecallCard(
     val error = playback.error.takeIf { current }
     var answer by remember(pack.id, line.id) { mutableStateOf("") }
     var checked by remember(pack.id, line.id) { mutableStateOf(false) }
-    val comparison = remember(line.en, answer, checked) {
-        if (checked) ListeningRecallCheck.compare(line.en, answer) else null
-    }
+    val comparison =
+        remember(line.en, answer, checked) {
+            if (checked) ListeningRecallCheck.compare(line.en, answer) else null
+        }
 
     Card(Modifier.fillMaxWidth()) {
         Column(
@@ -188,9 +189,12 @@ private fun RecallDifferenceRow(
                 val clickable = if (expected) Modifier.clickable { onTargetTap(shown) } else Modifier
                 Text(
                     text = shown,
-                    modifier = Modifier.clip(RoundedCornerShape(5.dp))
-                        .background(if (part.matches) Color.Transparent else errorBackground)
-                        .then(clickable).padding(horizontal = 3.dp, vertical = 2.dp),
+                    modifier =
+                        Modifier
+                            .clip(RoundedCornerShape(5.dp))
+                            .background(if (part.matches) Color.Transparent else errorBackground)
+                            .then(clickable)
+                            .padding(horizontal = 3.dp, vertical = 2.dp),
                     color = if (part.matches) regularColor else errorColor,
                     style = MaterialTheme.typography.bodyLarge,
                 )
