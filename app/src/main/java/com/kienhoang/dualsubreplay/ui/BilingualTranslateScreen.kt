@@ -114,7 +114,8 @@ internal fun BilingualTranslateScreen(
             try {
                 val id = savedWordId(word, "en", "zh", null, null)
                 val old = vocabulary.words.value.firstOrNull { it.id == id }
-                val saved = SavedWord(
+                val saved =
+                    SavedWord(
                     id = id,
                     word = word,
                     reading = null,
@@ -133,13 +134,14 @@ internal fun BilingualTranslateScreen(
                 vocabulary.save(saved)
                 launch { snackbar.showSnackbar("已加入生词本：" + word) }
                 if (old?.meaning.isNullOrBlank()) {
-                    val meaning = try {
-                        bilingualTranslate(google, local, "en", "zh", word).first
-                    } catch (cancelled: CancellationException) {
-                        throw cancelled
-                    } catch (_: Exception) {
-                        ""
-                    }
+                    val meaning =
+                        try {
+                            bilingualTranslate(google, local, "en", "zh", word).first
+                        } catch (cancelled: CancellationException) {
+                            throw cancelled
+                        } catch (_: Exception) {
+                            ""
+                        }
                     if (meaning.isNotBlank()) vocabulary.save(saved.copy(meaning = meaning))
                 }
             } catch (cancelled: CancellationException) {
@@ -155,7 +157,9 @@ internal fun BilingualTranslateScreen(
             Scaffold(
                 topBar = {
                     Row(
-                        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text("中英互译", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
@@ -167,7 +171,11 @@ internal fun BilingualTranslateScreen(
                 snackbarHost = { SnackbarHost(snackbar) },
             ) { inner ->
                 Column(
-                    Modifier.fillMaxSize().padding(inner).verticalScroll(rememberScrollState()).padding(16.dp),
+                    Modifier
+                        .fillMaxSize()
+                        .padding(inner)
+                        .verticalScroll(rememberScrollState())
+                        .padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(14.dp),
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -237,7 +245,9 @@ internal fun BilingualTranslateScreen(
                     if (translatedText.isNotBlank()) {
                         Card(Modifier.fillMaxWidth()) {
                             Column(
-                                Modifier.fillMaxWidth().padding(16.dp),
+                                Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
                                 verticalArrangement = Arrangement.spacedBy(10.dp),
                             ) {
                                 Text(targetLabel + "译文", style = MaterialTheme.typography.labelLarge)
@@ -261,7 +271,9 @@ internal fun BilingualTranslateScreen(
                     if (source == "en" && sourceText.isNotBlank()) {
                         Card(Modifier.fillMaxWidth()) {
                             Column(
-                                Modifier.fillMaxWidth().padding(16.dp),
+                                Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
                                 verticalArrangement = Arrangement.spacedBy(8.dp),
                             ) {
                                 Text("英文原文 · 可点按单词", style = MaterialTheme.typography.labelLarge)
@@ -294,12 +306,15 @@ private fun EnglishWordPressText(
     Text(
         text = text,
         style = MaterialTheme.typography.bodyLarge,
-        modifier = Modifier.fillMaxWidth().pointerInput(text) {
-            detectTapGestures(
-                onTap = { position -> wordUnderFinger(text, layout, position)?.let(onTap) },
-                onLongPress = { position -> wordUnderFinger(text, layout, position)?.let(onLongPress) },
-            )
-        },
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .pointerInput(text) {
+                    detectTapGestures(
+                        onTap = { position -> wordUnderFinger(text, layout, position)?.let(onTap) },
+                        onLongPress = { position -> wordUnderFinger(text, layout, position)?.let(onLongPress) },
+                    )
+                },
         onTextLayout = { layout = it },
     )
 }
