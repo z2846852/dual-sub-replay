@@ -41,6 +41,16 @@ Paths below are relative to
   the screen, and `WEB_KEEP_PLAYING_WHEN_HIDDEN_SCRIPT` always tells YouTube's page it is visible
   so it keeps playing without Premium too (owner decision 2026-10-13). See the
   [spec](../specs/2026-10-13-background-play-and-earphone-controls.md).
+- Offline Listening (`listening/ListeningScreen.kt`, `ListeningSpeechService.kt`) is a separate
+  dialogue-based screen and foreground speech service. Its default voice comes from
+  `ListeningNaturalVoice.cachedOrDownload` (Google natural speech, MP3 cached for reuse),
+  not Android TTS; a failure offers an explicit device-TTS option and must not silently
+  change voices. The continuous mode speaks every line, while the opt-in sentence-recall
+  mode uses the **same voice path** and requests one-shot completion: after each sentence
+  it stops until the learner dictates using their phone's own keyboard microphone and
+  explicitly checks a punctuation/case-insensitive, **word-exact** comparison in
+  `ListeningRecallCheck.kt`. It does not record audio or grade pronunciation, and
+  it does not mark words as mastered. See the [sentence-recall spec](../specs/2026-11-23-offline-listening-sentence-recall.md).
 - `data/CaptionProvider.kt` is the provider interface. `YouTubeCaptionProvider.kt`
   discovers caption tracks from watch-page player metadata and undocumented
   Innertube player fallbacks, then fetches timed text. `CaptionDocumentParser.kt`
