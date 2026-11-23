@@ -15,6 +15,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.kienhoang.dualsubreplay.R
+import com.kienhoang.dualsubreplay.data.UPDATE_REPOSITORY
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -23,7 +24,11 @@ import kotlinx.coroutines.withContext
 internal val LICENSE_ASSETS =
     listOf("licenses/MIT.txt", "licenses/libraries.txt", "licenses/hanzi.txt", "licenses/translation.txt")
 
-internal const val PROJECT_REPOSITORY_URL = "https://github.com/hoangkien1703/dual-sub-replay"
+/** Primary project link for this installed fork. Never silently redirect it upstream. */
+internal const val PROJECT_REPOSITORY_URL = "https://github.com/$UPDATE_REPOSITORY"
+
+/** The original project remains available as a separate, explicitly attributed link. */
+internal const val ORIGINAL_PROJECT_REPOSITORY_URL = "https://github.com/hoangkien1703/dual-sub-replay"
 
 @Composable
 private fun FooterLinkText(text: String) {
@@ -77,6 +82,18 @@ internal fun DrawerFooter(beforeOpen: suspend () -> Unit = {}) {
         ) {
             FooterLinkText(stringResource(R.string.navigation_github_repository))
         }
+    }
+    // Attribution is important, but the user must consciously choose to visit the original author.
+    TextButton(
+        onClick = {
+            scope.launch {
+                beforeOpen()
+                uriHandler.openUri(ORIGINAL_PROJECT_REPOSITORY_URL)
+            }
+        },
+        modifier = Modifier.padding(start = 4.dp).testTag("original_github_repository_link"),
+    ) {
+        FooterLinkText(stringResource(R.string.navigation_original_repository))
     }
     if (showLicense) {
         val license by produceState(loadingLicense) {
