@@ -157,6 +157,10 @@ internal object AppUpdater {
     /** The update dialog; the drawer opens it, and an automatic update waiting for a tap opens it too. */
     val dialogVisible: StateFlow<Boolean> = mutableDialogVisible.asStateFlow()
 
+    /** Manual update flow has no in-app decision steps: check, verify, download, then install. */
+    private val mutableOneTapFlow = MutableStateFlow(false)
+    val oneTapFlow: StateFlow<Boolean> = mutableOneTapFlow.asStateFlow()
+
     private val mutableReminder = MutableStateFlow(UpdateReminder.NONE)
 
     /** The banner or security dialog the daily check found; the screen shows it once no video plays. */
@@ -194,11 +198,37 @@ internal object AppUpdater {
 
     fun hideDialog() {
         mutableDialogVisible.value = false
+        mutableOneTapFlow.value = false
         // A finished answer is not kept; a download or a ready update is.
         when (state.value) {
             UpdateState.UpToDate, is UpdateState.Failed -> mutableState.value = UpdateState.Idle
             else -> Unit
         }
+    }
+
+    /**
+     * User-initiated one-tap update. Do not ask for an additional download or install tap.
+     * The system package installer can still require its own authorization.
+     */
+    fun checkAndInstall(context: Context) {
+        val app = context.applicationContext
+        automatic = false
+        mutableOneTapFlow.value = true
+        if (busy()) {
+            mutableDialogVisible.value = true
+            return
+        }
+        mutableState.value = UpdateState.Checking
+        mutableDialogVisible.value = true
+        job =
+            scope.launch {
+                checkNow(app)
+                when (val found = state.value) {
+                    is UpdateState.Available -> downloadAndInstall(app, found.update)
+                    is UpdateState.Ready -> installNow(app, found.update, found.file)
+                    else -> Unit
+                }
+            }
     }
 
     /** Check for updates: asks GitHub now. */
@@ -275,7 +305,15 @@ internal object AppUpdater {
         foreground = true
         val app = context.applicationContext
         if (state.value is UpdateState.Installing) recoverUnansweredInstall(app)
-        if (pendingConfirmation != null || (automatic && state.value is UpdateState.Ready)) {
+        if (mutableOneTapFlow.value && pendingConfirmation != null) {
+            // A system confirmation was postponed while the app was in the background.
+            val confirmation = pendingConfirmation
+            pendingConfirmation = null
+            if (confirmation != null && sessionWaiting(app, installSessionId)) {
+                mutableDialogVisible.value = false
+                startConfirmation(app, confirmation)
+            }
+        } else if (pendingConfirmation != null || (automatic && state.value is UpdateState.Ready)) {
             mutableDialogVisible.value = true
         }
         if (busy()) return
@@ -370,7 +408,8 @@ internal object AppUpdater {
         if (waiting && confirmation == null) return
         pendingConfirmation = confirmation?.takeIf { waiting }
         lastConfirmation = null
-        mutableState.value = UpdateState.Ready(update, file)
+        mutableState.value =
+            if (mutableOneTapFlow.value) failed(UpdateProblem.CANCELLED, update, file) else UpdateState.Ready(update, file)
         mutableDialogVisible.value = true
     }
 
@@ -846,6 +885,7 @@ internal object AppUpdater {
             return
         }
         lastConfirmation = confirmation
+        if (mutableOneTapFlow.value) mutableDialogVisible.value = false
         if (foreground) {
             startConfirmation(context, confirmation)
         } else {
@@ -866,6 +906,7 @@ internal object AppUpdater {
                 PackageInstaller.STATUS_FAILURE_ABORTED -> UpdateState.Failed(UpdateProblem.CANCELLED, update, file)
                 else -> failed(UpdateProblem.INSTALL_FAILED, update, file)
             }
+        if (mutableOneTapFlow.value && state.value is UpdateState.Failed) mutableDialogVisible.value = true
     }
 
     private fun startConfirmation(
