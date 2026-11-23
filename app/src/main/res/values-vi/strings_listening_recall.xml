@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="listening_continuous">Phát liên tục</string>
+    <string name="listening_recall">Nhắc lại từng câu</string>
+    <string name="listening_recall_hidden">Nghe mà không hiện câu gốc</string>
+    <string name="listening_recall_playing">Đang phát câu</string>
+    <string name="listening_recall_waiting">Đã phát xong. Hãy nhắc lại bên dưới.</string>
+    <string name="listening_recall_hint">Dùng mic của bàn phím để nhắc lại bằng tiếng Anh</string>
+    <string name="listening_recall_placeholder">Nhập hoặc đọc lại câu vừa nghe</string>
+    <string name="listening_recall_check">Kiểm tra</string>
+    <string name="listening_recall_replay">Nghe lại</string>
+    <string name="listening_recall_retry">Thử lại</string>
+    <string name="listening_recall_previous">Câu trước</string>
+    <string name="listening_recall_next">Câu tiếp</string>
+    <string name="listening_recall_expected">Câu gốc</string>
+    <string name="listening_recall_actual">Câu bạn nói</string>
+    <string name="listening_recall_perfect">Tất cả từ đều khớp</string>
+    <string name="listening_recall_differences">%1$d từ khác nhau</string>
+    <string name="listening_recall_missing">[thiếu]</string>
+    <string name="listening_recall_try_local">Dùng giọng trên máy</string>
+    <string name="listening_recall_note">Chỉ so sánh văn bản nhận dạng, không đánh giá phát âm.</string>
+</resources>
