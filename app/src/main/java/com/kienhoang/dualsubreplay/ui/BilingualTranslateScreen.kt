@@ -106,7 +106,7 @@ internal fun BilingualTranslateScreen(
     val sourceLabel = if (source == "zh") "中文" else "英文"
     val targetLabel = if (target == "zh") "中文" else "英文"
 
-    val onSaveWord: (String) -> Unit = { raw ->
+    fun saveWord(raw: String) {
         val word = raw.lowercase(Locale.ROOT)
         val englishSentence = if (source == "en") sourceText.trim() else translatedText.trim()
         val chineseSentence = if (source == "zh") sourceText.trim() else translatedText.trim()
@@ -116,21 +116,21 @@ internal fun BilingualTranslateScreen(
                 val old = vocabulary.words.value.firstOrNull { it.id == id }
                 val saved =
                     SavedWord(
-                    id = id,
-                    word = word,
-                    reading = null,
-                    wordLanguage = "en",
-                    meaningLanguage = "zh",
-                    meaning = old?.meaning.orEmpty(),
-                    sentence = englishSentence,
-                    translatedSentence = chineseSentence.takeIf { it.isNotBlank() },
-                    videoId = null,
-                    startMs = 0,
-                    endMs = 0,
-                    translated = false,
-                    online = false,
-                    sourceTitle = "中英互译",
-                )
+                        id = id,
+                        word = word,
+                        reading = null,
+                        wordLanguage = "en",
+                        meaningLanguage = "zh",
+                        meaning = old?.meaning.orEmpty(),
+                        sentence = englishSentence,
+                        translatedSentence = chineseSentence.takeIf { it.isNotBlank() },
+                        videoId = null,
+                        startMs = 0,
+                        endMs = 0,
+                        translated = false,
+                        online = false,
+                        sourceTitle = "中英互译",
+                    )
                 vocabulary.save(saved)
                 launch { snackbar.showSnackbar("已加入生词本：" + word) }
                 if (old?.meaning.isNullOrBlank()) {
@@ -255,7 +255,7 @@ internal fun BilingualTranslateScreen(
                                     EnglishWordPressText(
                                         translatedText,
                                         { word -> pronouncer.speak(word, "en") },
-                                        onSaveWord,
+                                        ::saveWord,
                                     )
                                 } else {
                                     Text(translatedText, style = MaterialTheme.typography.bodyLarge)
@@ -280,7 +280,7 @@ internal fun BilingualTranslateScreen(
                                 EnglishWordPressText(
                                     sourceText,
                                     { word -> pronouncer.speak(word, "en") },
-                                    onSaveWord,
+                                    ::saveWord,
                                 )
                             }
                         }
