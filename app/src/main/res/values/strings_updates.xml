@@ -17,8 +17,8 @@
     <string name="updates_install">Install</string>
     <string name="updates_installing">Installing… The app closes while it updates.</string>
     <string name="updates_try_again">Try again</string>
-    <string name="updates_open_github">My fork's releases</string>
-    <string name="updates_original_play_store_note">The Google Play listing belongs to the original author's app, not this fork.</string>
+    <string name="updates_open_github">Releases from my fork</string>
+    <string name="updates_original_play_store_note">The Google Play listing belongs to the original project app, not this fork.</string>
     <string name="updates_unsupported">This copy of the app was built on a computer, so it can\'t update itself. Get the latest version on GitHub.</string>
     <string name="updates_unsupported_device">New versions are made for phones with ARM processors, and this device can\'t run them. The version you have keeps working, and GitHub has every version.</string>
     <string name="updates_problem_offline">Couldn\'t reach GitHub. Check your connection and try again.</string>
