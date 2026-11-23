@@ -98,3 +98,27 @@ If Google audio is uncached and unavailable, keep the existing error and explici
 - Build/lint/managed-device CI: not yet run; see linked PR checks once available.
 - Physical Android, Google natural voice, local TTS fallback, IME microphone: **not tested yet**.
 - Live YouTube tests: not applicable; unchanged architecture.
+
+## Follow-up: progressive recall and reusable progress (owner decision, 2026-11-23)
+
+This section supersedes the earlier "Check reveals the original/diff" UI description. The feature stays on the existing PR branch; do not merge without the owner.
+
+### Acceptance criteria (new)
+
+- A first incorrect check reveals **only "not passed"**, never the correct sentence, differing words or even a mismatch count. Rechecking is unrestricted, with the text field remaining fully editable.
+- After the second incorrect check the learner may explicitly request **red marks only** on their own recognized words. Missing expected words appear as a red blank placeholder; the expected word is not exposed.
+- The rightmost **Show answer** control is always explicit, and reveals target and aligned wrong words only when tapped. Listening again does not wipe the input.
+- Editable native Compose field supports keyboard dictation, long-press word selection and replacement, and a right-side X to clear the entire field. Do not claim that keyboard recognition can verify acoustic pronunciation.
+- Every sentence has a small clickable status segment (green latest check passed, red latest check failed, neutral not checked; selected indication is separate). Navigation and wrong-only review use those segments in original order.
+- Save per-pack/per-line attempts, latest pass, first-try pass, hint level, initial submitted text and last revised text, with a current-position checkpoint. Preserve scores/history when reopening the screen and in visible pack list summaries. Ignore saved grades whose original English source changed since the save.
+- Distinguish input-recognition correction: learner can label the text as wrongly recognized and recheck a manual edit **without another counted listening attempt**; record the correction. Do not mislabel keyboard-transcribed text as reliable raw audio.
+- Use the existing private, opt-in GitHub event upload for small practice events when appropriate; do not introduce a new network endpoint or automatic upload.
+- Keep Google-natural-voice as the default, optional explicit TTS fallback, and continuous playback unchanged.
+- Tests should cover scoring transitions, hint gates, mismatches/missing placeholders, and progress persistence decisions; Android CI on the final head and physical-device verification remain necessary.
+
+### Additional plan
+
+1. Add model and atomic-file persisted recall snapshots, per-line counters and wrong-only selector, safely defaulting older state files.
+2. Rebuild the recall card for editable text, three graduated tools, result-only first failure, clickable progress, and navigation.
+3. Show per-pack progress compactly in material selection and resume the most recent line.
+4. Add localized strings in every supported locale, deterministic tests and check updated CI.
