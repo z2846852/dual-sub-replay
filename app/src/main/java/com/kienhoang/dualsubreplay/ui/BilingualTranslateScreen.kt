@@ -168,21 +168,21 @@ internal fun BilingualTranslateScreen(
                 val existing = vocabulary.words.value.firstOrNull { it.id == id }
                 val saved =
                     SavedWord(
-                    id = id,
-                    word = word,
-                    reading = null,
-                    wordLanguage = pick.language,
-                    meaningLanguage = meaningLanguage,
-                    meaning = existing?.meaning?.takeIf(String::isNotBlank) ?: alreadyResolved,
-                    sentence = sentence,
-                    translatedSentence = translatedSentence.takeIf(String::isNotBlank),
-                    videoId = null,
-                    startMs = 0,
-                    endMs = 0,
-                    translated = !fromSource,
-                    online = false,
-                    sourceTitle = "中英互译",
-                )
+                        id = id,
+                        word = word,
+                        reading = null,
+                        wordLanguage = pick.language,
+                        meaningLanguage = meaningLanguage,
+                        meaning = existing?.meaning?.takeIf(String::isNotBlank) ?: alreadyResolved,
+                        sentence = sentence,
+                        translatedSentence = translatedSentence.takeIf(String::isNotBlank),
+                        videoId = null,
+                        startMs = 0,
+                        endMs = 0,
+                        translated = !fromSource,
+                        online = false,
+                        sourceTitle = "中英互译",
+                    )
                 vocabulary.save(saved)
                 snackbar.showSnackbar("已加入生词本：" + word)
                 if (saved.meaning.isBlank()) {
