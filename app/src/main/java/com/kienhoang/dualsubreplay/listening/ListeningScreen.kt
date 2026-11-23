@@ -119,7 +119,11 @@ internal fun ListeningScreen(
                 }
             }) { inner ->
                 LazyColumn(
-                    Modifier.fillMaxSize().padding(inner).padding(horizontal = 16.dp).imePadding(),
+                    Modifier
+                        .fillMaxSize()
+                        .padding(inner)
+                        .padding(horizontal = 16.dp)
+                        .imePadding(),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     item {
