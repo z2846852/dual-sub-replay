@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="listening_continuous">Putar terus</string>
+    <string name="listening_recall">Ulangi kalimat</string>
+    <string name="listening_recall_hidden">Dengarkan tanpa melihat kalimat</string>
+    <string name="listening_recall_playing">Memutar kalimat</string>
+    <string name="listening_recall_waiting">Pemutaran selesai. Ulangi di bawah.</string>
+    <string name="listening_recall_hint">Gunakan mikrofon papan ketik untuk mengulang dalam bahasa Inggris</string>
+    <string name="listening_recall_placeholder">Ketik atau diktekan yang didengar</string>
+    <string name="listening_recall_check">Periksa</string>
+    <string name="listening_recall_replay">Putar ulang</string>
+    <string name="listening_recall_retry">Coba lagi</string>
+    <string name="listening_recall_previous">Sebelumnya</string>
+    <string name="listening_recall_next">Berikutnya</string>
+    <string name="listening_recall_expected">Asli</string>
+    <string name="listening_recall_actual">Ucapan Anda</string>
+    <string name="listening_recall_perfect">Semua kata cocok</string>
+    <string name="listening_recall_differences">%1$d perbedaan kata</string>
+    <string name="listening_recall_missing">[terlewat]</string>
+    <string name="listening_recall_try_local">Coba suara perangkat</string>
+    <string name="listening_recall_note">Hanya membandingkan teks yang dikenali, bukan pelafalan.</string>
+</resources>
