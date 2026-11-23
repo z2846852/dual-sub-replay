@@ -252,9 +252,9 @@
     <!-- Report this answer (Google Play build spec 2026-11-21). -->
     <string name="ai_report_answer">举报</string>
     <string name="ai_report_title">举报此回答</string>
-    <string name="ai_report_intro">如果这条 AI 回答令人反感、有害或有误，请告诉我们。邮件应用会打开并填好回答；在你发送之前不会发送任何内容。</string>
+    <string name="ai_report_intro">此举报会通过邮件发送到原作者项目的支持邮箱，不属于 z2846852 的 Fork。邮件中包含你举报的 AI 回答，请先检查内容，再决定是否发送。</string>
     <string name="ai_report_offensive">令人反感或有害</string>
     <string name="ai_report_wrong">错误或误导</string>
     <string name="ai_report_other">其他原因</string>
-    <string name="ai_report_no_email">此手机未设置邮件应用。你可以发送邮件至 %1$s。</string>
+    <string name="ai_report_no_email">此手机未设置邮件应用。原作者项目邮箱（非本 Fork）：%1$s。</string>
 </resources>

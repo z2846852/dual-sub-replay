@@ -96,6 +96,14 @@ internal fun CheckForUpdatesRow(onOpen: () -> Unit) {
                 style = MaterialTheme.typography.labelSmall,
                 color = if (available != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            if (AppUpdater.channel(context) == UpdateChannel.GooglePlay) {
+                // This build's Play Store destination is the upstream package, not the personal fork.
+                Text(
+                    stringResource(R.string.updates_original_play_store_note),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
 }

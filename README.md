@@ -34,11 +34,11 @@
 ### 第一次安装（正式自用版）
 
 1. 打开 [本 Fork 最新 Release](https://github.com/z2846852/dual-sub-replay/releases/latest)。
-2. 等待 Android CI 全部通过、发布任务产出 `DualSub-Replay.apk`；若 Release 尚不存在，代表还没有正式安装包。
+2. 本 Fork 的 [Personal Fast APK](https://github.com/z2846852/dual-sub-replay/actions/workflows/personal-fast-apk.yml) 在 `main` 提交时构建、签名并发布个人安装包；这是**快速构建，不运行完整测试**。它独立于完整 CI，因此 Release 存在不代表所有测试通过。
 3. 下载并安装 `DualSub-Replay.apk`，系统可能要求一次「允许安装未知应用」。
 4. 今后进入 App 的「检查更新」，即可从**本 Fork** 下载、校验并安装新版。适用时优先使用小差分包，否则完整下载 APK。
 
-工作流：[Android build and releases](https://github.com/z2846852/dual-sub-replay/actions/workflows/android.yml)。它在 `main` 自动执行，**只生成一次正式签名 APK**，通过测试后直接发布该 APK，不需要另外二次编译。支持 GitHub Actions 页面手动触发。
+质量检查：[Android build and releases](https://github.com/z2846852/dual-sub-replay/actions/workflows/android.yml)，包含格式检查、单元测试和模拟器测试；与快速 APK 工作流分开运行。不要将“快速 APK 已成功”误解成“完整 CI 已通过”。
 
 **当前状态由实时 Actions / Releases 为准。** 源码已提交不等于生成了 APK，更不等于真机测试通过。正式个人版的包名为 `com.z2846852.dualsubreplay`，可与原作者的独立安装，不能直接覆盖其安装或自动迁移应用数据。
 
@@ -48,6 +48,21 @@
 - 使用 YouTube 观看在线视频时需要网络。
 - 离线英语听力需要先下载对话包，并确保手机的英语 TTS 离线语音包已安装。
 - 访问个人私有 `english` 仓库时需要单独配置该仓库的 GitHub 访问凭据。
+
+## 入口归属：本 Fork 与原项目
+
+当前安装包主要入口应当指向本 Fork，不能默默跳转到原作者：
+
+| App 入口 | 目标与说明 |
+| --- | --- |
+| 侧边栏「我的 Fork 仓库」 | [z2846852/dual-sub-replay](https://github.com/z2846852/dual-sub-replay) |
+| 「检查更新」「新功能」 | [本 Fork Releases](https://github.com/z2846852/dual-sub-replay/releases)，不会从上游安装 APK |
+| 「报告问题」→「提交到我的 Fork」 | [本 Fork Issues](https://github.com/z2846852/dual-sub-replay/issues) |
+| 「邮件联系原作者」、AI 回答举报邮件 | **原作者项目邮箱** `dualsubreplay.help@gmail.com`，不属于本 Fork。发送前会在 App 内提示 |
+| 「原作者仓库（跳转外部项目）」 | [原作者 hoangkien1703/dual-sub-replay](https://github.com/hoangkien1703/dual-sub-replay)，单独保留以致谢和遵守署名 |
+| Google Play 版本中的商店链接 | 原作者版本的 Google Play 页面；本 Fork 自用版从 GitHub Releases 安装，App 内会明确说明 |
+
+原作者署名、MIT 许可证和第三方开源声明不会被更改为本 Fork 的名义。
 
 ## 模式一：YouTube 双语字幕（原功能保留）
 
