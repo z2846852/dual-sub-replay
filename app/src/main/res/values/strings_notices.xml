@@ -5,7 +5,7 @@
     <string name="notice_update_recommended">A newer version fixes problems in this one. Open the menu and tap Check for updates.</string>
     <string name="notice_close">Close</string>
     <string name="report_problem_title">Report a problem</string>
-    <string name="report_problem_intro">Open GitHub reports bugs to this z2846852 fork. The email button instead addresses the original author's support inbox; it is NOT maintained by this fork. Review the details below before sending anything. The report includes recent failed steps, not your videos, subtitles or account.</string>
+    <string name="report_problem_intro">Open GitHub reports bugs to this z2846852 fork. The email button instead addresses the support inbox of the original author; it is NOT maintained by this fork. Review the details below before sending anything. The report includes recent failed steps, not your videos, subtitles or account.</string>
     <string name="report_problem_open">Report to my fork on GitHub</string>
     <string name="report_problem_copy">Copy</string>
     <string name="report_problem_copied">Copied</string>
