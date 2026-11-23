@@ -1,6 +1,7 @@
 package com.kienhoang.dualsubreplay.listening
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -8,7 +9,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -48,7 +48,7 @@ import com.kienhoang.dualsubreplay.R
  * selection and the keyboard's microphone; this does not measure phonetic pronunciation.
  */
 @Composable
-@Suppress("LongMethod")
+@Suppress("LongMethod", "CyclomaticComplexMethod")
 internal fun ListeningRecallCard(
     pack: ListeningPack,
     lineIndex: Int,
@@ -172,7 +172,7 @@ internal fun ListeningRecallCard(
                     style = MaterialTheme.typography.titleSmall,
                     modifier = Modifier.testTag("recall_result"),
                 )
-                if (progress.failed && checkedCurrent) {
+                if (progress.failed) {
                     TextButton(onClick = {
                         correctionPending = true
                         revealed = 0
@@ -279,12 +279,19 @@ internal fun ListeningRecallCard(
                                 .size(27.dp)
                                 .clip(RoundedCornerShape(5.dp))
                                 .background(bg)
+                                .border(
+                                    if (i == index) 2.dp else 0.dp,
+                                    MaterialTheme.colorScheme.onSurface,
+                                    RoundedCornerShape(5.dp),
+                                )
                                 .clickable {
                                     onSaveDraft(answer)
                                     onPlayLine(i)
-                                }.semantics {
+                                }
+                                .semantics {
                                     contentDescription = "${i + 1}: $label"
-                                }.testTag("recall_segment_${i + 1}"),
+                                }
+                                .testTag("recall_segment_${i + 1}"),
                         contentAlignment = Alignment.Center,
                     ) {
                         Text(
