@@ -37,6 +37,7 @@ import com.kienhoang.dualsubreplay.R
  * dictation attempt, and a word-level text comparison. No speech recognition is owned by the app.
  */
 @Composable
+@Suppress("LongMethod")
 internal fun ListeningRecallCard(
     pack: ListeningPack,
     lineIndex: Int,
@@ -120,7 +121,8 @@ internal fun ListeningRecallCard(
                     } else {
                         stringResource(R.string.listening_recall_differences, comparison.differences)
                     },
-                    color = if (comparison.perfect) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                    color =
+                        if (comparison.perfect) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
                     style = MaterialTheme.typography.titleSmall,
                     modifier = Modifier.testTag("recall_result"),
                 )
@@ -180,7 +182,8 @@ private fun RecallDifferenceRow(
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         comparison.words.forEach { part ->
-            val shown = if (expected) part.expected else part.actual ?: if (part.expected != null) missing else null
+            val shown =
+                if (expected) part.expected else part.actual ?: if (part.expected != null) missing else null
             if (shown != null) {
                 val clickable = if (expected) Modifier.clickable { onTargetTap(shown) } else Modifier
                 Text(
