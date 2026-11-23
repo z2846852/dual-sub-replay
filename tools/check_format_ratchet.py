@@ -28,5 +28,16 @@ if __name__ == "__main__":
             allowed = baseline.get(file, {}).get(rule, 0)
             if count > allowed:
                 failures.append(f"{file}: {rule}: {count} > existing budget {allowed}")
+                # Show precise source coordinates so developers can fix the violation without
+                # re-running ktlint locally. Keep the ratchet rule and budgets unchanged.
+                for item in ET.parse("build/reports/format.xml").getroot().findall("file"):
+                    if item.attrib["name"].replace("\\\\", "/") != file:
+                        continue
+                    for error in item.findall("error"):
+                        if error.attrib.get("source") == rule:
+                            failures.append(
+                                f"  line {error.attrib.get('line', '?')}, column {error.attrib.get('column', '?')}: "
+                                f"{error.attrib.get('message', '')}"
+                            )
     print("\n".join(failures) if failures else "Formatting ratchet passed (new files require zero violations).")
     sys.exit(bool(failures))

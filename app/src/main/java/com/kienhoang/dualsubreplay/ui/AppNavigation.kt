@@ -13,6 +13,7 @@ import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -37,6 +38,7 @@ internal val navigationMenuOpen = MutableStateFlow(false)
 internal fun AppNavigation(
     onPractice: () -> Unit,
     onListening: () -> Unit = {},
+    onTranslate: () -> Unit = {},
     onSettings: () -> Unit,
     onProgress: () -> Unit = {},
     onVisibilityChange: (Boolean) -> Unit = {},
@@ -84,6 +86,18 @@ internal fun AppNavigation(
                                     scope.launch {
                                         drawer.close()
                                         onListening()
+                                    }
+                                },
+                            )
+                            NavigationDrawerItem(
+                                icon = { Icon(Icons.Default.Translate, contentDescription = null) },
+                                label = { Text("中英互译") },
+                                selected = false,
+                                modifier = Modifier.testTag("open_bilingual_translate"),
+                                onClick = {
+                                    scope.launch {
+                                        drawer.close()
+                                        onTranslate()
                                     }
                                 },
                             )

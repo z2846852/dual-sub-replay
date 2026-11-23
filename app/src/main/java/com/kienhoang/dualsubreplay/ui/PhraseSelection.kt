@@ -428,6 +428,7 @@ internal fun BindPhraseActions(
  * clears this line's selection.
  */
 @Composable
+@Suppress("CyclomaticComplexMethod")
 internal fun SelectableSubtitleText(
     text: String,
     annotated: AnnotatedString,
@@ -799,6 +800,7 @@ private fun lineSideUnlessCentered(
 private fun TextStyle.centeredIf(centered: Boolean): TextStyle = if (centered) copy(textAlign = TextAlign.Center) else this
 
 @Composable
+@Suppress("LongMethod")
 private fun PhraseActionBar(
     selection: Rect,
     phrase: String,

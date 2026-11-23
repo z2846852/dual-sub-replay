@@ -263,5 +263,5 @@
     <string name="ai_report_offensive">Offensive or harmful</string>
     <string name="ai_report_wrong">Wrong or misleading</string>
     <string name="ai_report_other">Something else</string>
-    <string name="ai_report_no_email">No email app is set up. The ORIGINAL author's address (not this fork) is %1$s.</string>
+    <string name="ai_report_no_email">No email app is set up. The ORIGINAL author\'s address (not this fork) is %1$s.</string>
 </resources>

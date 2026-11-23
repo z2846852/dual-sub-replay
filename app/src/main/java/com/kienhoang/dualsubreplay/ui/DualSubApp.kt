@@ -150,6 +150,7 @@ fun DualSubApp(
         ListeningVoicePrefetch.schedule(listeningContext, listeningStore.state.value.packs)
     }
     var showListening by remember { mutableStateOf(false) }
+    var showTranslate by remember { mutableStateOf(false) }
     val webController = rememberYouTubeWebController()
     val pronouncer = rememberWordPronouncer()
     BindPhraseActions(
@@ -240,6 +241,11 @@ fun DualSubApp(
                         webController.pause()
                         showListening = true
                     },
+                    onTranslate = {
+                        viewModel.selectLearningWord(null)
+                        webController.pause()
+                        showTranslate = true
+                    },
                     onProgress = {
                         viewModel.selectLearningWord(null)
                         webController.pause()
@@ -320,6 +326,12 @@ fun DualSubApp(
                 },
                 onPause = { webController.pause() },
                 onDismiss = { showVocabulary = false },
+            )
+        }
+        if (showTranslate) {
+            BilingualTranslateScreen(
+                vocabulary = viewModel.vocabulary,
+                onClose = { showTranslate = false },
             )
         }
         if (showListening) {
@@ -421,6 +433,7 @@ private fun DualSubExperience(
     webController: YouTubeWebController,
     onVocabulary: () -> Unit,
     onListening: () -> Unit,
+    onTranslate: () -> Unit,
     onProgress: () -> Unit,
     onAutoPronounceChange: (Boolean) -> Unit,
     playerMode: PlayerExperienceMode,
@@ -559,6 +572,7 @@ private fun DualSubExperience(
     AppNavigation(
         onPractice = onVocabulary,
         onListening = onListening,
+        onTranslate = onTranslate,
         onProgress = onProgress,
         onSettings = { showSettings = true },
         onVisibilityChange = onNavigationVisibilityChange,

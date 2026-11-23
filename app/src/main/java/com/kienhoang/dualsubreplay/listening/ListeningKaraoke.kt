@@ -167,6 +167,7 @@ internal fun ListeningKaraokeCard(
 }
 
 @Composable
+@Suppress("CyclomaticComplexMethod")
 internal fun ListeningRainbowWords(
     text: String,
     active: Boolean,
