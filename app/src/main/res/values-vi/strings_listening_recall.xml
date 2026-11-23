@@ -19,4 +19,17 @@
     <string name="listening_recall_missing">[thiếu]</string>
     <string name="listening_recall_try_local">Dùng giọng trên máy</string>
     <string name="listening_recall_note">Chỉ so sánh văn bản nhận dạng, không đánh giá phát âm.</string>
+    <string name="listening_recall_clear">Xóa câu trả lời</string>
+    <string name="listening_recall_failed">Chưa đạt · lần %1$d</string>
+    <string name="listening_recall_recognition_correction">Nhận dạng sai? Sửa và kiểm tra lại</string>
+    <string name="listening_recall_correction_pending">Lần sửa này không tính thêm lượt nghe</string>
+    <string name="listening_recall_red_only">Chỉ tô đỏ</string>
+    <string name="listening_recall_reveal">Xem đáp án</string>
+    <string name="listening_recall_summary">Đạt %1$d · Sai %2$d · Tổng %3$d</string>
+    <string name="listening_recall_status_passed">Đạt</string>
+    <string name="listening_recall_status_failed">Chưa đạt</string>
+    <string name="listening_recall_status_new">Chưa luyện</string>
+    <string name="listening_recall_all_sentences">Tất cả câu</string>
+    <string name="listening_recall_wrong_only">Luyện câu sai %1$d</string>
+    <string name="listening_recall_pack_summary">Đạt %1$d/%2$d · Sai %3$d</string>
 </resources>

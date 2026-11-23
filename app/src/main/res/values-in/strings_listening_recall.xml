@@ -19,4 +19,17 @@
     <string name="listening_recall_missing">[terlewat]</string>
     <string name="listening_recall_try_local">Coba suara perangkat</string>
     <string name="listening_recall_note">Hanya membandingkan teks yang dikenali, bukan pelafalan.</string>
+    <string name="listening_recall_clear">Hapus jawaban</string>
+    <string name="listening_recall_failed">Belum lulus · percobaan %1$d</string>
+    <string name="listening_recall_recognition_correction">Salah dikenali? Perbaiki tanpa menambah percobaan</string>
+    <string name="listening_recall_correction_pending">Perbaikan ini tidak menambah jumlah percobaan</string>
+    <string name="listening_recall_red_only">Tandai merah</string>
+    <string name="listening_recall_reveal">Lihat jawaban</string>
+    <string name="listening_recall_summary">Lulus %1$d · Salah %2$d · Total %3$d</string>
+    <string name="listening_recall_status_passed">Lulus</string>
+    <string name="listening_recall_status_failed">Belum lulus</string>
+    <string name="listening_recall_status_new">Belum dilatih</string>
+    <string name="listening_recall_all_sentences">Semua kalimat</string>
+    <string name="listening_recall_wrong_only">Ulangi salah %1$d</string>
+    <string name="listening_recall_pack_summary">Lulus %1$d/%2$d · Salah %3$d</string>
 </resources>

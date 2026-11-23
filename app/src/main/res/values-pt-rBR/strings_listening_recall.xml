@@ -19,4 +19,17 @@
     <string name="listening_recall_missing">[faltando]</string>
     <string name="listening_recall_try_local">Usar voz do aparelho</string>
     <string name="listening_recall_note">Compara apenas o texto reconhecido, não a pronúncia.</string>
+    <string name="listening_recall_clear">Limpar resposta</string>
+    <string name="listening_recall_failed">Não passou · tentativa %1$d</string>
+    <string name="listening_recall_recognition_correction">Erro de reconhecimento? Corrigir sem contar tentativa</string>
+    <string name="listening_recall_correction_pending">Esta correção não contará como nova tentativa</string>
+    <string name="listening_recall_red_only">Só em vermelho</string>
+    <string name="listening_recall_reveal">Ver resposta</string>
+    <string name="listening_recall_summary">Certas %1$d · Erradas %2$d · Total %3$d</string>
+    <string name="listening_recall_status_passed">Correta</string>
+    <string name="listening_recall_status_failed">Incorreta</string>
+    <string name="listening_recall_status_new">Não praticada</string>
+    <string name="listening_recall_all_sentences">Todas as frases</string>
+    <string name="listening_recall_wrong_only">Refazer erradas %1$d</string>
+    <string name="listening_recall_pack_summary">Certas %1$d/%2$d · Erradas %3$d</string>
 </resources>

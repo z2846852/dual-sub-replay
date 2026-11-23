@@ -19,4 +19,17 @@
     <string name="listening_recall_missing">〔漏词〕</string>
     <string name="listening_recall_try_local">尝试本机语音</string>
     <string name="listening_recall_note">这里只对照语音转写文字，不能判断真实发音。</string>
+    <string name="listening_recall_clear">清空复述</string>
+    <string name="listening_recall_failed">未通过 · 第 %1$d 次核对</string>
+    <string name="listening_recall_recognition_correction">语音识别有误？修改后不计次数</string>
+    <string name="listening_recall_correction_pending">本次按识别修正重新核对，不增加听辨次数</string>
+    <string name="listening_recall_red_only">仅标红</string>
+    <string name="listening_recall_reveal">揭晓答案</string>
+    <string name="listening_recall_summary">通过 %1$d · 错句 %2$d · 共 %3$d</string>
+    <string name="listening_recall_status_passed">通过</string>
+    <string name="listening_recall_status_failed">未通过</string>
+    <string name="listening_recall_status_new">未练习</string>
+    <string name="listening_recall_all_sentences">练习全部句子</string>
+    <string name="listening_recall_wrong_only">只练错句 %1$d</string>
+    <string name="listening_recall_pack_summary">通过 %1$d/%2$d · 错句 %3$d</string>
 </resources>

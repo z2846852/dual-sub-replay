@@ -19,4 +19,17 @@
     <string name="listening_recall_missing">[buraxılıb]</string>
     <string name="listening_recall_try_local">Cihaz səsini sına</string>
     <string name="listening_recall_note">Yalnız tanınmış mətn müqayisə edilir, tələffüz yox.</string>
+    <string name="listening_recall_clear">Cavabı sil</string>
+    <string name="listening_recall_failed">Keçilmədi · %1$d-ci cəhd</string>
+    <string name="listening_recall_recognition_correction">Səs tanıma səhvi? Düzəlt və yenidən yoxla</string>
+    <string name="listening_recall_correction_pending">Bu düzəliş yeni cəhd sayılmayacaq</string>
+    <string name="listening_recall_red_only">Yalnız qırmızı</string>
+    <string name="listening_recall_reveal">Cavabı göstər</string>
+    <string name="listening_recall_summary">Keçildi %1$d · Səhv %2$d · Cəmi %3$d</string>
+    <string name="listening_recall_status_passed">Keçildi</string>
+    <string name="listening_recall_status_failed">Keçilmədi</string>
+    <string name="listening_recall_status_new">Məşq edilməyib</string>
+    <string name="listening_recall_all_sentences">Bütün cümlələr</string>
+    <string name="listening_recall_wrong_only">Səhvləri təkrarla %1$d</string>
+    <string name="listening_recall_pack_summary">Keçildi %1$d/%2$d · Səhv %3$d</string>
 </resources>

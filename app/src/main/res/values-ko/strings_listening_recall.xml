@@ -19,4 +19,17 @@
     <string name="listening_recall_missing">[누락]</string>
     <string name="listening_recall_try_local">기기 음성 사용</string>
     <string name="listening_recall_note">인식된 텍스트만 비교하며 실제 발음을 평가하지 않습니다.</string>
+    <string name="listening_recall_clear">응답 지우기</string>
+    <string name="listening_recall_failed">불합격 · %1$d번째 시도</string>
+    <string name="listening_recall_recognition_correction">음성 인식 오류인가요? 수정 후 재검사</string>
+    <string name="listening_recall_correction_pending">수정 확인은 시도 횟수에 포함되지 않습니다</string>
+    <string name="listening_recall_red_only">오류만 표시</string>
+    <string name="listening_recall_reveal">정답 보기</string>
+    <string name="listening_recall_summary">통과 %1$d · 오답 %2$d · 전체 %3$d</string>
+    <string name="listening_recall_status_passed">통과</string>
+    <string name="listening_recall_status_failed">미통과</string>
+    <string name="listening_recall_status_new">미연습</string>
+    <string name="listening_recall_all_sentences">모든 문장</string>
+    <string name="listening_recall_wrong_only">오답만 %1$d</string>
+    <string name="listening_recall_pack_summary">통과 %1$d/%2$d · 오답 %3$d</string>
 </resources>
