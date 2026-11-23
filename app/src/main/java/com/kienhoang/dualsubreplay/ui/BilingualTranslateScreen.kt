@@ -218,19 +218,20 @@ internal fun BilingualTranslateScreen(
                                 val to = target
                                 busy = true
                                 translatedText = ""
-                                translationJob = scope.launch {
-                                    try {
-                                        val (result, offline) = bilingualTranslate(google, local, from, to, text)
-                                        translatedText = result
-                                        usedOffline = offline
-                                    } catch (cancelled: CancellationException) {
-                                        throw cancelled
-                                    } catch (error: Exception) {
-                                        snackbar.showSnackbar("翻译失败：" + (error.message ?: "请检查网络或离线语言包"))
-                                    } finally {
-                                        busy = false
+                                translationJob =
+                                    scope.launch {
+                                        try {
+                                            val (result, offline) = bilingualTranslate(google, local, from, to, text)
+                                            translatedText = result
+                                            usedOffline = offline
+                                        } catch (cancelled: CancellationException) {
+                                            throw cancelled
+                                        } catch (error: Exception) {
+                                            snackbar.showSnackbar("翻译失败：" + (error.message ?: "请检查网络或离线语言包"))
+                                        } finally {
+                                            busy = false
+                                        }
                                     }
-                                }
                             },
                         ) { Text("翻译") }
                         TextButton(onClick = {
