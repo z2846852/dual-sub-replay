@@ -194,7 +194,7 @@ internal class SyncedLyricsSource(
                 .url(lyricsSearchUrl(query))
                 .header("Accept", "application/json")
                 // LRCLIB asks apps to name themselves.
-                .header("User-Agent", "DualSub-Replay/${BuildConfig.VERSION_NAME} (https://github.com/hoangkien1703/dual-sub-replay)")
+                .header("User-Agent", "DualSub-Replay/${BuildConfig.VERSION_NAME} (https://github.com/$UPDATE_REPOSITORY)")
                 .get()
                 .build()
         client.newCall(request).execute().use { response ->
