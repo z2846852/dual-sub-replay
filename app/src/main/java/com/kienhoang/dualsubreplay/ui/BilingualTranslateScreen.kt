@@ -43,17 +43,19 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.kienhoang.dualsubreplay.data.AnalyzedToken
 import com.kienhoang.dualsubreplay.data.ChineseMorphology
+import com.kienhoang.dualsubreplay.data.PartOfSpeech
 import com.kienhoang.dualsubreplay.data.LanguageAwareTokenizer
 import com.kienhoang.dualsubreplay.data.SavedWord
 import com.kienhoang.dualsubreplay.data.VocabularyRepository
@@ -459,16 +461,15 @@ private fun BilingualInteractiveText(
 ) {
     val dictionaryRevision by ChineseMorphology.revision.collectAsState()
     val tokens = remember(text, language, dictionaryRevision) {
-        LanguageAwareTokenizer.tokenize(text, language).filter {
-            it.text.any(Char::isLetterOrDigit) && it.startIndex >= 0 && it.endIndex <= text.length
-        }
+        bilingualWordTokens(text, language)
     }
     var layout by remember(text, language) { mutableStateOf<TextLayoutResult?>(null) }
+    val selectedBackground = MaterialTheme.colorScheme.primaryContainer
     val highlightedText = buildAnnotatedString {
         append(text)
         tokens.filter { selected?.word == it.text && selected.language == language }.forEach { token ->
             addStyle(
-                SpanStyle(background = MaterialTheme.colorScheme.primaryContainer),
+                SpanStyle(background = selectedBackground),
                 token.startIndex,
                 token.endIndex,
             )
@@ -493,8 +494,24 @@ private fun BilingualInteractiveText(
     )
 }
 
+/** Match token indices to the rendered string; a missing Chinese lexicon still permits character taps. */
+internal fun bilingualWordTokens(text: String, language: String): List<AnalyzedToken> {
+    if (language == "zh" && ChineseMorphology.analyze(text) == null) {
+        return text.mapIndexedNotNull { index, char ->
+            if (char.code in 0x3400..0x9FFF) {
+                AnalyzedToken(char.toString(), index, index + 1, PartOfSpeech.OTHER)
+            } else {
+                null
+            }
+        }
+    }
+    return LanguageAwareTokenizer.tokenize(text, language).filter {
+        it.text.any(Char::isLetterOrDigit) && it.startIndex >= 0 && it.endIndex <= text.length
+    }
+}
+
 private fun bilingualWordAtPosition(
-    tokens: List<com.kienhoang.dualsubreplay.data.AnalyzedToken>,
+    tokens: List<AnalyzedToken>,
     layout: TextLayoutResult?,
     position: Offset,
 ): String? {
