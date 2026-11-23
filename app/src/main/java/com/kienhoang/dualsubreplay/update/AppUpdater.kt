@@ -188,6 +188,15 @@ internal object AppUpdater {
     /** Device tests show a dialog state without asking GitHub. */
     @VisibleForTesting
     fun showForTest(shown: UpdateState) {
+        mutableOneTapFlow.value = false
+        mutableState.value = shown
+        mutableDialogVisible.value = true
+    }
+
+    /** UI test of the user-initiated update screen, without network traffic or installing an APK. */
+    @VisibleForTesting
+    fun showOneTapForTest(shown: UpdateState) {
+        mutableOneTapFlow.value = true
         mutableState.value = shown
         mutableDialogVisible.value = true
     }
