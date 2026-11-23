@@ -198,7 +198,10 @@ internal fun BilingualTranslateScreen(
                         minLines = 3,
                         maxLines = 9,
                     )
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
                         Button(
                             enabled = sourceText.isNotBlank() && !busy,
                             onClick = {
@@ -239,7 +242,11 @@ internal fun BilingualTranslateScreen(
                             ) {
                                 Text(targetLabel + "译文", style = MaterialTheme.typography.labelLarge)
                                 if (target == "en") {
-                                    EnglishWordPressText(translatedText, { word -> pronouncer.speak(word, "en") }, onSaveWord)
+                                    EnglishWordPressText(
+                                        translatedText,
+                                        { word -> pronouncer.speak(word, "en") },
+                                        onSaveWord,
+                                    )
                                 } else {
                                     Text(translatedText, style = MaterialTheme.typography.bodyLarge)
                                 }
@@ -258,7 +265,11 @@ internal fun BilingualTranslateScreen(
                                 verticalArrangement = Arrangement.spacedBy(8.dp),
                             ) {
                                 Text("英文原文 · 可点按单词", style = MaterialTheme.typography.labelLarge)
-                                EnglishWordPressText(sourceText, { word -> pronouncer.speak(word, "en") }, onSaveWord)
+                                EnglishWordPressText(
+                                    sourceText,
+                                    { word -> pronouncer.speak(word, "en") },
+                                    onSaveWord,
+                                )
                             }
                         }
                     }
