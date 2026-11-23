@@ -22,6 +22,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -106,17 +107,56 @@ private data class BilingualWordPick(
     val language: String,
 )
 
-/** A compact, auto-updating Chinese/English translator, sharing the player's saved-word database. */
+/** Two copies of the same translator. Each composable invocation owns its own input and results. */
 @Composable
-@Suppress("LongMethod", "CyclomaticComplexMethod")
 internal fun BilingualTranslateScreen(
     vocabulary: VocabularyRepository,
     onClose: () -> Unit,
 ) {
+    val snackbar = remember { SnackbarHostState() }
+    Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Surface(Modifier.fillMaxSize()) {
+            Scaffold(
+                topBar = {
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text("即时中英互译", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+                        IconButton(onClick = onClose) {
+                            Icon(Icons.Default.Close, contentDescription = "关闭翻译")
+                        }
+                    }
+                },
+                snackbarHost = { SnackbarHost(snackbar) },
+            ) { inner ->
+                Column(
+                    Modifier
+                        .fillMaxSize()
+                        .padding(inner)
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    BilingualTranslatePane(vocabulary, snackbar)
+                    HorizontalDivider()
+                    BilingualTranslatePane(vocabulary, snackbar)
+                }
+            }
+        }
+    }
+}
+
+/** The same reusable editor, instantiated twice without shared editor state or linked directions. */
+@Composable
+@Suppress("LongMethod", "CyclomaticComplexMethod")
+private fun BilingualTranslatePane(
+    vocabulary: VocabularyRepository,
+    snackbar: SnackbarHostState,
+) {
     val context = LocalContext.current.applicationContext
     val clipboard = LocalClipboardManager.current
     val scope = rememberCoroutineScope()
-    val snackbar = remember { SnackbarHostState() }
     val pronouncer = rememberWordPronouncer()
     val google = remember(context) { GoogleWebTranslator(File(context.cacheDir, "google-translations")) }
     val local = remember(context) { OnDeviceTranslator(File(context.cacheDir, "subtitle-translations")) }
@@ -282,182 +322,160 @@ internal fun BilingualTranslateScreen(
         pronouncer.speak(pick.word, pick.language)
     }
 
-    Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Surface(Modifier.fillMaxSize()) {
-            Scaffold(
-                topBar = {
-                    Row(
-                        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text("即时中英互译", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
-                        IconButton(onClick = onClose) {
-                            Icon(Icons.Default.Close, contentDescription = "关闭翻译")
+    Column(
+        Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(sourceLabel, style = MaterialTheme.typography.titleMedium)
+                    Spacer(Modifier.weight(1f))
+                    Text("自动识别", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    IconButton(onClick = {
+                        val oldTarget = target
+                        val translated = translatedText
+                        if (translated.isNotBlank()) {
+                            editText(translated, oldTarget)
+                        } else {
+                            editText(sourceText, oldTarget)
                         }
+                    }) {
+                        Icon(Icons.Default.SwapHoriz, contentDescription = "交换翻译方向")
                     }
-                },
-                snackbarHost = { SnackbarHost(snackbar) },
-            ) { inner ->
-                Column(
-                    Modifier
-                        .fillMaxSize()
-                        .padding(inner)
-                        .verticalScroll(rememberScrollState())
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(sourceLabel, style = MaterialTheme.typography.titleMedium)
-                        Spacer(Modifier.weight(1f))
-                        Text("自动识别", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        IconButton(onClick = {
-                            val oldTarget = target
-                            val translated = translatedText
-                            if (translated.isNotBlank()) {
-                                editText(translated, oldTarget)
-                            } else {
-                                editText(sourceText, oldTarget)
+                    Spacer(Modifier.weight(1f))
+                    Text(targetLabel, style = MaterialTheme.typography.titleMedium)
+                }
+                OutlinedTextField(
+                    value = sourceText,
+                    onValueChange = { editText(it) },
+                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = { Text("输入中文或英文，自动翻译…") },
+                    minLines = 2,
+                    maxLines = 6,
+                    trailingIcon = {
+                        if (sourceText.isNotEmpty()) {
+                            IconButton(onClick = { editText("") }) {
+                                Icon(Icons.Default.Close, contentDescription = "清空输入")
                             }
-                        }) {
-                            Icon(Icons.Default.SwapHoriz, contentDescription = "交换翻译方向")
                         }
-                        Spacer(Modifier.weight(1f))
-                        Text(targetLabel, style = MaterialTheme.typography.titleMedium)
-                    }
-                    OutlinedTextField(
-                        value = sourceText,
-                        onValueChange = { editText(it) },
-                        modifier = Modifier.fillMaxWidth(),
-                        placeholder = { Text("输入中文或英文，自动翻译…") },
-                        minLines = 2,
-                        maxLines = 6,
-                        trailingIcon = {
-                            if (sourceText.isNotEmpty()) {
-                                IconButton(onClick = { editText("") }) {
-                                    Icon(Icons.Default.Close, contentDescription = "清空输入")
-                                }
-                            }
-                        },
+                    },
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "输入后自动翻译 · 点词发音 · 长按收藏",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f),
                     )
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            "输入后自动翻译 · 点词发音 · 长按收藏",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.weight(1f),
-                        )
-                        if (sourceText.isNotBlank()) {
-                            IconButton(onClick = { pronouncer.speak(sourceText.trim(), source) }) {
-                                Icon(Icons.Default.VolumeUp, contentDescription = "朗读原文")
-                            }
-                            IconButton(onClick = { copyText(sourceText) }) {
-                                Icon(Icons.Default.ContentCopy, contentDescription = "复制原文")
-                            }
-                        }
-                    }
                     if (sourceText.isNotBlank()) {
-                        Card(Modifier.fillMaxWidth()) {
-                            Column(
-                                Modifier.fillMaxWidth().padding(14.dp),
-                                verticalArrangement = Arrangement.spacedBy(8.dp),
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(targetLabel + "译文", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
-                                    if (translating) {
-                                        CircularProgressIndicator(modifier = Modifier.padding(end = 8.dp))
-                                    }
-                                    if (translatedText.isNotBlank()) {
-                                        IconButton(onClick = { pronouncer.speak(translatedText, target) }) {
-                                            Icon(Icons.Default.VolumeUp, contentDescription = "朗读整句译文")
-                                        }
-                                        IconButton(onClick = { copyText(translatedText) }) {
-                                            Icon(Icons.Default.ContentCopy, contentDescription = "复制译文")
-                                        }
-                                    }
-                                    if (errorMessage != null) {
-                                        IconButton(onClick = { retryVersion++ }) {
-                                            Icon(Icons.Default.Refresh, contentDescription = "重试翻译")
-                                        }
-                                    }
-                                }
-                                when {
-                                    translatedText.isNotBlank() -> {
-                                        BilingualInteractiveText(
-                                            text = translatedText,
-                                            language = target,
-                                            selected = pickedWord,
-                                            onTap = ::chooseWord,
-                                            onLongPress = ::saveWord,
-                                        )
-                                        Text(
-                                            if (usedOffline) "本机翻译" else "Google 翻译",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        )
-                                    }
-                                    errorMessage != null -> Text(errorMessage.orEmpty(), color = MaterialTheme.colorScheme.error)
-                                    translating -> Text("正在翻译…", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    else -> Text("正在等待输入…", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                }
-                            }
+                        IconButton(onClick = { pronouncer.speak(sourceText.trim(), source) }) {
+                            Icon(Icons.Default.VolumeUp, contentDescription = "朗读原文")
                         }
-                    }
-                    if (pickedWord != null) {
-                        val pick = pickedWord!!
-                        val otherLanguage = if (pick.language == "en") "zh" else "en"
-                        val id =
-                            savedWordId(
-                                if (pick.language == "en") pick.word.lowercase(Locale.ROOT) else pick.word,
-                                pick.language,
-                                otherLanguage,
-                                null,
-                                null,
-                            )
-                        val isSaved = savedWords.any { it.id == id }
-                        Card(Modifier.fillMaxWidth()) {
-                            Column(
-                                Modifier.fillMaxWidth().padding(12.dp),
-                                verticalArrangement = Arrangement.spacedBy(6.dp),
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(pick.word, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                                    IconButton(onClick = { pronouncer.speak(pick.word, pick.language) }) {
-                                        Icon(Icons.Default.VolumeUp, contentDescription = "朗读选中单词")
-                                    }
-                                    IconButton(onClick = { copyText(pick.word) }) {
-                                        Icon(Icons.Default.ContentCopy, contentDescription = "复制选中单词")
-                                    }
-                                    IconButton(onClick = { saveWord(pick) }) {
-                                        Icon(
-                                            if (isSaved) Icons.Default.Check else Icons.Default.BookmarkAdd,
-                                            contentDescription = if (isSaved) "已收藏，更新生词" else "加入生词本",
-                                        )
-                                    }
-                                }
-                                if (pickedMeaning.isNotBlank()) {
-                                    Text(pickedMeaning, style = MaterialTheme.typography.bodyMedium)
-                                } else {
-                                    Text("释义查询中，仍可直接收藏", style = MaterialTheme.typography.labelSmall)
-                                }
-                            }
+                        IconButton(onClick = { copyText(sourceText) }) {
+                            Icon(Icons.Default.ContentCopy, contentDescription = "复制原文")
                         }
-                    }
-                    if (sourceText.isNotBlank()) {
-                        Text("原文逐词操作", style = MaterialTheme.typography.labelMedium)
-                        BilingualInteractiveText(
-                            text = sourceText,
-                            language = source,
-                            selected = pickedWord,
-                            onTap = ::chooseWord,
-                            onLongPress = ::saveWord,
-                        )
-                    }
-                    pronouncer.message?.let { message ->
-                        Text(message, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                     }
                 }
-            }
-        }
+                if (sourceText.isNotBlank()) {
+                    Card(Modifier.fillMaxWidth()) {
+                        Column(
+                            Modifier.fillMaxWidth().padding(14.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(targetLabel + "译文", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+                                if (translating) {
+                                    CircularProgressIndicator(modifier = Modifier.padding(end = 8.dp))
+                                }
+                                if (translatedText.isNotBlank()) {
+                                    IconButton(onClick = { pronouncer.speak(translatedText, target) }) {
+                                        Icon(Icons.Default.VolumeUp, contentDescription = "朗读整句译文")
+                                    }
+                                    IconButton(onClick = { copyText(translatedText) }) {
+                                        Icon(Icons.Default.ContentCopy, contentDescription = "复制译文")
+                                    }
+                                }
+                                if (errorMessage != null) {
+                                    IconButton(onClick = { retryVersion++ }) {
+                                        Icon(Icons.Default.Refresh, contentDescription = "重试翻译")
+                                    }
+                                }
+                            }
+                            when {
+                                translatedText.isNotBlank() -> {
+                                    BilingualInteractiveText(
+                                        text = translatedText,
+                                        language = target,
+                                        selected = pickedWord,
+                                        onTap = ::chooseWord,
+                                        onLongPress = ::saveWord,
+                                    )
+                                    Text(
+                                        if (usedOffline) "本机翻译" else "Google 翻译",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                                errorMessage != null -> Text(errorMessage.orEmpty(), color = MaterialTheme.colorScheme.error)
+                                translating -> Text("正在翻译…", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                else -> Text("正在等待输入…", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
+                }
+                if (pickedWord != null) {
+                    val pick = pickedWord!!
+                    val otherLanguage = if (pick.language == "en") "zh" else "en"
+                    val id =
+                        savedWordId(
+                            if (pick.language == "en") pick.word.lowercase(Locale.ROOT) else pick.word,
+                            pick.language,
+                            otherLanguage,
+                            null,
+                            null,
+                        )
+                    val isSaved = savedWords.any { it.id == id }
+                    Card(Modifier.fillMaxWidth()) {
+                        Column(
+                            Modifier.fillMaxWidth().padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(pick.word, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                                IconButton(onClick = { pronouncer.speak(pick.word, pick.language) }) {
+                                    Icon(Icons.Default.VolumeUp, contentDescription = "朗读选中单词")
+                                }
+                                IconButton(onClick = { copyText(pick.word) }) {
+                                    Icon(Icons.Default.ContentCopy, contentDescription = "复制选中单词")
+                                }
+                                IconButton(onClick = { saveWord(pick) }) {
+                                    Icon(
+                                        if (isSaved) Icons.Default.Check else Icons.Default.BookmarkAdd,
+                                        contentDescription = if (isSaved) "已收藏，更新生词" else "加入生词本",
+                                    )
+                                }
+                            }
+                            if (pickedMeaning.isNotBlank()) {
+                                Text(pickedMeaning, style = MaterialTheme.typography.bodyMedium)
+                            } else {
+                                Text("释义查询中，仍可直接收藏", style = MaterialTheme.typography.labelSmall)
+                            }
+                        }
+                    }
+                }
+                if (sourceText.isNotBlank()) {
+                    Text("原文逐词操作", style = MaterialTheme.typography.labelMedium)
+                    BilingualInteractiveText(
+                        text = sourceText,
+                        language = source,
+                        selected = pickedWord,
+                        onTap = ::chooseWord,
+                        onLongPress = ::saveWord,
+                    )
+                }
+                pronouncer.message?.let { message ->
+                    Text(message, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                }
+
     }
 }
 
