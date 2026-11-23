@@ -36,6 +36,24 @@ class ForkLinkTests(unittest.TestCase):
         )
         self.assertIn('testTag("original_github_repository_link")', footer)
 
+    def test_no_unlabelled_upstream_github_url_in_app_source(self):
+        source_dir = ROOT / "app/src/main/java"
+        upstream = "https://github.com/hoangkien1703/dual-sub-replay"
+        for file in source_dir.rglob("*.kt"):
+            for line in file.read_text(encoding="utf-8").splitlines():
+                if upstream not in line:
+                    continue
+                self.assertEqual(
+                    file.name,
+                    "DrawerFooter.kt",
+                    f"Unexpected direct upstream destination in {file}",
+                )
+                self.assertIn(
+                    "ORIGINAL_PROJECT_REPOSITORY_URL",
+                    line,
+                    f"An upstream link must be explicitly labelled: {file}",
+                )
+
     def test_fork_issues_and_upstream_email_have_explicit_labels(self):
         problems = source(
             "app/src/main/java/com/kienhoang/dualsubreplay/data/ProblemLog.kt"
