@@ -2,7 +2,7 @@
 
 ## Status
 
-Approved for implementation — requested by the fork owner on 2026-11-23. This authorizes implementation, not merging or publication.
+Implemented — requested by the fork owner on 2026-11-23. This authorizes implementation, not merging or publication.
 
 ## Context / problem
 
@@ -86,8 +86,15 @@ If Google audio is uncached and unavailable, keep the existing error and explici
 
 ## Implementation result
 
-Pending.
+- Added `oneShot` in `ListeningPlayback.start` and completion handling shared by Google MP3 and explicit device-TTS speech. On completion it reports `finished`, stops the foreground service and does not increment the line.
+- Added deterministic word-exact comparison and eight JVM test scenarios, covering articles, punctuation, omission, insertion, inflection, repeats, apostrophes and empty answers.
+- Added a dedicated recall UI and a continuous/recall mode toggle in Offline Listening. It uses Android keyboard dictation through a plain text field; Check reveals both sides, red-marked differences and the translation; Replay, Retry, Previous and Next remain explicit. Word taps use the existing saved-word dialog. Existing playback and Google voice/cache preferences are unchanged.
+- Added locale-specific resources for all nine interface-language resource sets, plus an architecture note. No new permissions, speech engine, network calls or GitHub schema changes.
+- Caveat: this is code implementation; speech recognition quality is determined by the phone keyboard, and physical-device playback remains unverified.
 
 ## Validation result
 
-Pending.
+- Added `ListeningRecallCheckTest`; unit tests not executed locally (this environment cannot resolve GitHub for a local checkout or fetch Gradle dependencies).
+- Build/lint/managed-device CI: not yet run; see linked PR checks once available.
+- Physical Android, Google natural voice, local TTS fallback, IME microphone: **not tested yet**.
+- Live YouTube tests: not applicable; unchanged architecture.
