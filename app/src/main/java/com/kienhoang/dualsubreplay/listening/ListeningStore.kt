@@ -330,15 +330,14 @@ internal class ListeningStore(
     /** The synced flag is a device-local outbox field, not part of the remote immutable event. */
     private fun remoteEvent(original: JSONObject): JSONObject = JSONObject(original.toString()).apply { remove("synced") }
 
-
     /** Per-line grades survive screen recreation and app updates without changing schema v1. */
     @Synchronized fun recallProgress(
         pack: ListeningPack,
         line: ListeningLine,
     ): RecallLineProgress {
-        val item = root.optJSONObject("recall_progress")
-            ?.optJSONObject(pack.id)
-            ?.optJSONObject(line.id) ?: return RecallLineProgress()
+        val all = root.optJSONObject("recall_progress") ?: return RecallLineProgress()
+        val group = all.optJSONObject(pack.id) ?: return RecallLineProgress()
+        val item = group.optJSONObject(line.id) ?: return RecallLineProgress()
         if (item.optString("reference") != line.en) return RecallLineProgress()
         val wrong = item.optJSONArray("wrong_words") ?: JSONArray()
         return RecallLineProgress(
@@ -354,18 +353,17 @@ internal class ListeningStore(
         )
     }
 
-    @Synchronized fun recallPosition(pack: ListeningPack): Int =
-        root.optJSONObject("recall_positions")
-            ?.optInt(pack.id, 0)
-            ?.coerceIn(pack.lines.indices) ?: 0
+    @Synchronized fun recallPosition(pack: ListeningPack): Int {
+        val positions = root.optJSONObject("recall_positions") ?: return 0
+        return positions.optInt(pack.id, 0).coerceIn(pack.lines.indices)
+    }
 
     @Synchronized fun setRecallPosition(
         pack: ListeningPack,
         index: Int,
     ) {
-        val positions = root.optJSONObject("recall_positions") ?: JSONObject().also {
-            root.put("recall_positions", it)
-        }
+        val positions = root.optJSONObject("recall_positions") ?: JSONObject()
+        root.put("recall_positions", positions)
         val safe = index.coerceIn(pack.lines.indices)
         if (positions.optInt(pack.id, -1) == safe) return
         positions.put(pack.id, safe)
@@ -425,10 +423,10 @@ internal class ListeningStore(
         line: ListeningLine,
         progress: RecallLineProgress,
     ) {
-        val all = root.optJSONObject("recall_progress") ?: JSONObject().also {
-            root.put("recall_progress", it)
-        }
-        val group = all.optJSONObject(pack.id) ?: JSONObject().also { all.put(pack.id, it) }
+        val all = root.optJSONObject("recall_progress") ?: JSONObject()
+        root.put("recall_progress", all)
+        val group = all.optJSONObject(pack.id) ?: JSONObject()
+        all.put(pack.id, group)
         group.put(
             line.id,
             JSONObject()

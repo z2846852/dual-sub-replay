@@ -32,8 +32,9 @@ internal data class RecallLineProgress(
         return copy(
             attempts = newAttempts,
             passed = comparison.perfect,
-            firstTryPassed = firstTryPassed ||
-                (attempts == 0 && comparison.perfect && hintLevel == 0 && !correction),
+            firstTryPassed =
+                firstTryPassed ||
+                    (attempts == 0 && comparison.perfect && hintLevel == 0 && !correction),
             firstAnswer = if (attempts == 0) answer else firstAnswer,
             lastAnswer = answer,
             draft = answer,

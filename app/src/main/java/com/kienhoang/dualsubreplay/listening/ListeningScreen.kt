@@ -164,12 +164,13 @@ internal fun ListeningScreen(
                                         if (!recallMode) {
                                             recallMode = true
                                             showText = false
-                                            recallIndex =
-                                                (if (playback.packId == pack.id && playback.playing) {
+                                            val target =
+                                                if (playback.packId == pack.id && playback.playing) {
                                                     playback.currentLine
                                                 } else {
                                                     store.recallPosition(pack)
-                                                }).coerceIn(pack.lines.indices)
+                                                }
+                                            recallIndex = target.coerceIn(pack.lines.indices)
                                             store.setRecallPosition(pack, recallIndex)
                                             ListeningPlayback.start(ctx, pack, recallIndex, oneShot = true)
                                         }
@@ -194,6 +195,7 @@ internal fun ListeningScreen(
                                     } else {
                                         (recallIndex + 1).takeIf { it <= pack.lines.lastIndex }
                                     }
+
                                 fun playLine(i: Int) {
                                     recallIndex = i.coerceIn(pack.lines.indices)
                                     store.setRecallPosition(pack, recallIndex)

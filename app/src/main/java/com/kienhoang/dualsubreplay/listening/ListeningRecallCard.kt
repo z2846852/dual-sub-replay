@@ -303,7 +303,10 @@ internal fun ListeningRecallCard(
                 }
             }
             OutlinedButton(
-                onClick = onToggleWrongOnly,
+                onClick = {
+                    onSaveDraft(answer)
+                    onToggleWrongOnly()
+                },
                 enabled = wrongOnly || failures > 0,
                 modifier = Modifier.fillMaxWidth().testTag("recall_wrong_only"),
             ) {
