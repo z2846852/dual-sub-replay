@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -18,6 +19,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -39,6 +41,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -95,6 +98,8 @@ internal fun ListeningScreen(
     var message by remember { mutableStateOf("") }
     var showSettings by remember { mutableStateOf(false) }
     var showText by remember { mutableStateOf(false) }
+    var recallMode by remember { mutableStateOf(false) }
+    var recallIndex by remember(pack?.id) { mutableStateOf(0) }
     var reviewMode by remember { mutableStateOf(false) }
     var reviewWord by remember { mutableStateOf<String?>(null) }
     var answerVisible by remember { mutableStateOf(false) }
@@ -113,7 +118,7 @@ internal fun ListeningScreen(
                 }
             }) { inner ->
                 LazyColumn(
-                    Modifier.fillMaxSize().padding(inner).padding(horizontal = 16.dp),
+                    Modifier.fillMaxSize().padding(inner).padding(horizontal = 16.dp).imePadding(),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     item {
@@ -130,6 +135,52 @@ internal fun ListeningScreen(
                         )
                     }
                     if (pack != null) {
+                        item {
+                            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                FilterChip(
+                                    selected = !recallMode,
+                                    onClick = {
+                                        if (recallMode) {
+                                            ListeningPlayback.stop(ctx)
+                                            recallMode = false
+                                        }
+                                    },
+                                    label = { Text(stringResource(R.string.listening_continuous)) },
+                                )
+                                FilterChip(
+                                    selected = recallMode,
+                                    onClick = {
+                                        if (!recallMode) {
+                                            recallMode = true
+                                            showText = false
+                                            recallIndex =
+                                                (if (playback.packId == pack.id) playback.currentLine else 0)
+                                                    .coerceIn(pack.lines.indices)
+                                            ListeningPlayback.start(ctx, pack, recallIndex, oneShot = true)
+                                        }
+                                    },
+                                    label = { Text(stringResource(R.string.listening_recall)) },
+                                )
+                            }
+                        }
+                        if (recallMode) {
+                            item {
+                                ListeningRecallCard(
+                                    pack = pack,
+                                    lineIndex = recallIndex,
+                                    playback = playback,
+                                    onPlayLine = { i ->
+                                        recallIndex = i.coerceIn(pack.lines.indices)
+                                        ListeningPlayback.start(ctx, pack, recallIndex, oneShot = true)
+                                    },
+                                    onTryLocal = { ListeningPlayback.tryLocal(ctx) },
+                                    onWordTap = { selected, line ->
+                                        word = selected
+                                        selectedLine = line
+                                    },
+                                )
+                            }
+                        } else {
                         item {
                             ListeningKaraokeCard(
                                 pack = pack,
@@ -167,6 +218,7 @@ internal fun ListeningScreen(
                                     selectedLine = line
                                 },
                             )
+                        }
                         }
                     }
                     if (state.unestablished >= 100) {
@@ -334,6 +386,12 @@ internal fun ListeningScreen(
                                 selectedLine = null
                                 word = null
                                 showText = false
+                                if (recallMode) {
+                                    recallIndex = 0
+                                    ListeningPlayback.start(ctx, p, 0, oneShot = true)
+                                } else if (playback.playing && playback.packId != p.id) {
+                                    ListeningPlayback.stop(ctx)
+                                }
                             }) {
                                 Text((if (p.id == pack?.id) "● " else "") + p.title + " · " + p.level)
                             }
