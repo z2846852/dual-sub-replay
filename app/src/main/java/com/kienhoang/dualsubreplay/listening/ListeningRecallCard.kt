@@ -9,8 +9,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -250,7 +251,7 @@ internal fun ListeningRecallCard(
                 style = MaterialTheme.typography.labelLarge,
             )
             FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(3.dp),
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
                 verticalArrangement = Arrangement.spacedBy(3.dp),
             ) {
                 progressByLine.forEachIndexed { i, status ->
@@ -275,8 +276,8 @@ internal fun ListeningRecallCard(
                     Box(
                         modifier =
                             Modifier
-                                .padding(1.dp)
-                                .size(27.dp)
+                                .width(19.dp)
+                                .height(27.dp)
                                 .clip(RoundedCornerShape(5.dp))
                                 .background(bg)
                                 .border(
