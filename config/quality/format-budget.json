@@ -478,5 +478,62 @@
     "standard:spacing-between-declarations-with-annotations": 2,
     "standard:blank-line-before-declaration": 2,
     "standard:statement-wrapping": 2
+  },
+  "app/src/main/java/com/kienhoang/dualsubreplay/data/KnownWords.kt": {
+    "standard:spacing-between-declarations-with-comments": 1,
+    "standard:multiline-expression-wrapping": 2,
+    "standard:chain-method-continuation": 6,
+    "standard:wrapping": 2
+  },
+  "app/src/main/java/com/kienhoang/dualsubreplay/listening/ListeningGitHub.kt": {
+    "standard:multiline-expression-wrapping": 5,
+    "standard:function-signature": 3,
+    "standard:wrapping": 3
+  },
+  "app/src/main/java/com/kienhoang/dualsubreplay/listening/ListeningKaraoke.kt": {
+    "standard:import-ordering": 1,
+    "standard:multiline-expression-wrapping": 6,
+    "standard:chain-method-continuation": 6
+  },
+  "app/src/main/java/com/kienhoang/dualsubreplay/listening/ListeningNaturalVoice.kt": {
+    "standard:import-ordering": 1,
+    "standard:class-signature": 2,
+    "standard:blank-line-before-declaration": 1,
+    "standard:chain-method-continuation": 1,
+    "standard:multiline-expression-wrapping": 2,
+    "standard:function-signature": 1,
+    "standard:indent": 25,
+    "standard:no-consecutive-blank-lines": 1
+  },
+  "app/src/main/java/com/kienhoang/dualsubreplay/listening/ListeningScreen.kt": {
+    "standard:import-ordering": 1,
+    "standard:multiline-expression-wrapping": 5,
+    "standard:chain-method-continuation": 2,
+    "standard:wrapping": 3,
+    "standard:argument-list-wrapping": 2,
+    "standard:trailing-comma-on-call-site": 1
+  },
+  "app/src/main/java/com/kienhoang/dualsubreplay/listening/ListeningSpeechService.kt": {
+    "standard:import-ordering": 1,
+    "standard:function-signature": 8,
+    "standard:multiline-expression-wrapping": 6,
+    "standard:function-expression-body": 1,
+    "standard:string-template": 1
+  },
+  "app/src/main/java/com/kienhoang/dualsubreplay/listening/ListeningStore.kt": {
+    "standard:chain-method-continuation": 3
+  },
+  "app/src/main/java/com/kienhoang/dualsubreplay/listening/ListeningVoicePrefetch.kt": {
+    "standard:blank-line-before-declaration": 1,
+    "standard:function-signature": 3,
+    "standard:chain-method-continuation": 4,
+    "standard:multiline-expression-wrapping": 1
+  },
+  "app/src/main/java/com/kienhoang/dualsubreplay/ui/PhraseSelection.kt": {
+    "standard:import-ordering": 1,
+    "standard:multiline-expression-wrapping": 1
+  },
+  "app/src/test/java/com/kienhoang/dualsubreplay/data/KnownWordsTest.kt": {
+    "standard:multiline-expression-wrapping": 1
   }
 }
