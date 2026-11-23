@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="listening_continuous">Continuous</string>
+    <string name="listening_recall">Sentence recall</string>
+    <string name="listening_recall_hidden">Listening: the original sentence is hidden</string>
+    <string name="listening_recall_playing">Playing this sentence</string>
+    <string name="listening_recall_waiting">Playback finished. Dictate your recall below.</string>
+    <string name="listening_recall_hint">Use the keyboard microphone to repeat the English sentence</string>
+    <string name="listening_recall_placeholder">Type or dictate what you heard</string>
+    <string name="listening_recall_check">Check</string>
+    <string name="listening_recall_replay">Replay</string>
+    <string name="listening_recall_retry">Try again</string>
+    <string name="listening_recall_previous">Previous</string>
+    <string name="listening_recall_next">Next</string>
+    <string name="listening_recall_expected">Original</string>
+    <string name="listening_recall_actual">Your recall</string>
+    <string name="listening_recall_perfect">All words match</string>
+    <string name="listening_recall_differences">%1$d word differences</string>
+    <string name="listening_recall_missing">[missed]</string>
+    <string name="listening_recall_try_local">Try device voice</string>
+    <string name="listening_recall_note">Comparison checks recognized words, not pronunciation.</string>
+</resources>
