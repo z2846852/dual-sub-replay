@@ -77,6 +77,18 @@ class AppUpdateUiTest {
     }
 
     @Test
+    fun oneTapUpdateShowsProgressWithoutAnotherConfirmation() {
+        AppUpdater.showOneTapForTest(UpdateState.Downloading(update, 0.5f))
+        composeRule.setContent { DualSubTheme { AppUpdateDialogHost(channel = UpdateChannel.Official) } }
+        composeRule.onNodeWithTag("update_message").assertIsDisplayed()
+        composeRule.onNodeWithTag("update_download").assertDoesNotExist()
+        composeRule.onNodeWithTag("update_install").assertDoesNotExist()
+        composeRule.onNodeWithTag("update_not_now").assertDoesNotExist()
+        composeRule.onNodeWithTag("update_hide").assertDoesNotExist()
+        composeRule.onNodeWithTag("update_try_again").assertDoesNotExist()
+    }
+
+    @Test
     fun aNewerVersionOffersUpdateAndNotNow() {
         AppUpdater.showForTest(UpdateState.Available(update))
         composeRule.setContent { DualSubTheme { AppUpdateDialogHost(channel = UpdateChannel.Official) } }
