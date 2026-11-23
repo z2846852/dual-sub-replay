@@ -259,9 +259,9 @@
     <!-- Report this answer (Google Play build spec 2026-11-21). -->
     <string name="ai_report_answer">Report</string>
     <string name="ai_report_title">Report this answer</string>
-    <string name="ai_report_intro">Tell us if this AI answer was offensive, harmful or wrong. Your email app opens with the answer filled in; nothing is sent until you send it.</string>
+    <string name="ai_report_intro">This report opens an email addressed to the ORIGINAL author's support inbox, not the z2846852 fork. It includes the flagged AI answer. Review the email before you choose to send it.</string>
     <string name="ai_report_offensive">Offensive or harmful</string>
     <string name="ai_report_wrong">Wrong or misleading</string>
     <string name="ai_report_other">Something else</string>
-    <string name="ai_report_no_email">No email app is set up on this phone. You can write to %1$s instead.</string>
+    <string name="ai_report_no_email">No email app is set up. The ORIGINAL author's address (not this fork) is %1$s.</string>
 </resources>
