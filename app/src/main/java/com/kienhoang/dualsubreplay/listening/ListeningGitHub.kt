@@ -166,12 +166,12 @@ internal class ListeningGitHub(
     }
 
     private fun pushPending(token: String, approvedEventIds: Set<String>): Int {
-        val pending = store.pendingEvents().filter { it.getString("id") in approvedEventIds }
+        val pending = store.pendingEvents().filter { ListeningSyncPolicy.approved(it.getString("id"), approvedEventIds) }
         val grouped =
             pending.groupBy { e ->
                 val month = e.getString("created_at").substring(0, 7)
                 check(month.matches(Regex("\\d{4}-\\d{2}")))
-                val stream = if (e.optString("type") == "recall_insight") "insights" else "events"
+                val stream = ListeningSyncPolicy.remoteCollection(e.optString("type"))
                 stream to month
             }
         for ((key, events) in grouped) {

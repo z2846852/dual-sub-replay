@@ -114,7 +114,7 @@ internal class ListeningStore(
         var pending = 0
         for (i in 0 until events.length()) {
             val e = events.optJSONObject(i) ?: continue
-            if (!e.optBoolean("synced") && !e.optBoolean("upload_excluded")) pending++
+            if (ListeningSyncPolicy.mayUpload(e.optBoolean("synced"), e.optBoolean("upload_excluded"))) pending++
             val word = e.optString("word").lowercase()
             if (e.optString("type") == "saved") savedWords.add(word)
         }
@@ -158,7 +158,7 @@ internal class ListeningStore(
         val list = root.optJSONArray("events") ?: JSONArray()
         return (0 until list.length())
             .map { list.getJSONObject(it) }
-            .filter { !it.optBoolean("synced") && !it.optBoolean("upload_excluded") }
+            .filter { ListeningSyncPolicy.mayUpload(it.optBoolean("synced"), it.optBoolean("upload_excluded")) }
             .map(::remoteEvent)
 
     /** Entries excluded in the preview remain on-device and can be restored before upload. */
