@@ -26,6 +26,8 @@ internal data class ListeningPack(
     val title: String,
     val level: String,
     val lines: List<ListeningLine>,
+    val followUpEn: String = "",
+    val kind: String = "dialogue",
 ) {
     fun toJson(): JSONObject =
         JSONObject()
@@ -33,6 +35,8 @@ internal data class ListeningPack(
             .put("id", id)
             .put("title", title)
             .put("level", level)
+            .put("follow_up_en", followUpEn)
+            .put("kind", kind)
             .put(
                 "lines",
                 JSONArray().apply {
@@ -66,7 +70,11 @@ internal data class ListeningPack(
                     )
                 }
             require(lines.all { it.en.isNotBlank() } && lines.map { it.id }.distinct().size == lines.size)
-            return ListeningPack(id, data.optString("title", id).take(120), data.optString("level", "A2"), lines)
+            return ListeningPack(
+                id, data.optString("title", id).take(120), data.optString("level", "A2"),
+                lines, data.optString("follow_up_en", "").take(500),
+                data.optString("kind", "dialogue").take(32),
+            )
         }
     }
 }
@@ -426,6 +434,125 @@ internal class ListeningStore(
         persist()
     }
 
+
+    /**
+     * MyWork-style Raw: user's words are kept verbatim, without AI scoring/correction.
+     * Each note is a separate local UUID item and an independently uploadable GitHub file.
+     */
+    @Synchronized fun addRawReflection(
+        pack: ListeningPack,
+        lineId: String,
+        prompt: String,
+        text: String,
+    ): Boolean {
+        val original = text.trim()
+        if (original.isEmpty()) return false
+        val events = root.optJSONArray("events") ?: JSONArray().also { root.put("events", it) }
+        val note = event("raw_note", "", pack.id, lineId)
+            .put("text", original.take(5000))
+            .put("prompt", prompt.trim().take(500))
+            .put("pack_title", pack.title)
+            .put("source", if (lineId.isBlank()) "dialogue_follow_up" else "sentence_reflection")
+            .put("reviewed_by_ai", false)
+        events.put(note)
+        changedRecall()
+        return true
+    }
+
+    @Synchronized fun rawNotesFor(packId: String, lineId: String? = null): List<JSONObject> {
+        val list = root.optJSONArray("events") ?: return emptyList()
+        return (0 until list.length())
+            .map { list.getJSONObject(it) }
+            .filter {
+                it.optString("type") == "raw_note" && !it.optBoolean("deleted") &&
+                    it.optString("dialogue_id") == packId &&
+                    (lineId == null || it.optString("line_id") == lineId)
+            }.map { JSONObject(it.toString()) }
+    }
+
+    /** Distinguish independent recall success from immediate retries, corrections and assisted answers. */
+    @Synchronized fun learningMetrics(): ListeningLearningMetrics {
+        val events = root.optJSONArray("events") ?: JSONArray()
+        val active = (0 until events.length()).map { events.getJSONObject(it) }
+            .filter { !it.optBoolean("deleted") }
+        val firstAttempts = active
+            .filter {
+                it.optString("type") == "recall_checked" &&
+                    it.optInt("attempt") == 1 &&
+                    it.optInt("hint_level") == 0 &&
+                    !it.optBoolean("recognition_correction") &&
+                    it.optString("review_label") != "typo"
+            }.groupBy { it.optString("dialogue_id") + "/" + it.optString("line_id") }
+            .values.mapNotNull { group -> group.minByOrNull { it.optString("created_at") } }
+        val retests = active.filter { it.optString("type") == "recall_retention" }
+        return ListeningLearningMetrics(
+            firstIndependentChecks = firstAttempts.size,
+            firstIndependentPasses = firstAttempts.count { it.optBoolean("passed") },
+            delayedChecks = retests.size,
+            delayedPasses = retests.count { it.optBoolean("passed") },
+            freeExpressions = active.count { it.optString("type") == "raw_note" },
+        )
+    }
+
+    /** A passed line becomes due after 1 day, then 7 days, then 30 days. */
+    private fun initializeRetestIfNeeded(pack: ListeningPack, line: ListeningLine) {
+        val all = root.optJSONObject("recall_retests") ?: JSONObject().also { root.put("recall_retests", it) }
+        val key = pack.id + "/" + line.id
+        if (all.has(key)) return
+        val today = LocalDate.now(ZoneId.of("Asia/Shanghai"))
+        all.put(
+            key,
+            JSONObject()
+                .put("reference", line.en)
+                .put("stage", 0)
+                .put("due_on", today.plusDays(1).toString())
+                .put("original_day", today.toString()),
+        )
+    }
+
+    @Synchronized fun dueRetests(): List<ListeningRetest> {
+        val all = root.optJSONObject("recall_retests") ?: return emptyList()
+        val today = LocalDate.now(ZoneId.of("Asia/Shanghai")).toString()
+        val packs = snapshot().packs
+        return all.keys().asSequence().mapNotNull { key ->
+            val item = all.optJSONObject(key) ?: return@mapNotNull null
+            if (item.optString("due_on") > today) return@mapNotNull null
+            val packId = key.substringBeforeLast("/")
+            val lineId = key.substringAfterLast("/")
+            val pack = packs.firstOrNull { it.id == packId } ?: return@mapNotNull null
+            val index = pack.lines.indexOfFirst { it.id == lineId }
+            if (index < 0 || pack.lines[index].en != item.optString("reference")) return@mapNotNull null
+            ListeningRetest(pack, index, item.optString("due_on"), item.optInt("stage"))
+        }.sortedWith(compareBy({ it.dueOn }, { it.pack.title }, { it.lineIndex })).toList()
+    }
+
+    @Synchronized fun checkDelayedRecall(pack: ListeningPack, line: ListeningLine, text: String): Boolean {
+        require(text.isNotBlank())
+        val all = root.optJSONObject("recall_retests") ?: return false
+        val key = pack.id + "/" + line.id
+        val item = all.optJSONObject(key) ?: return false
+        if (item.optString("reference") != line.en) return false
+        val today = LocalDate.now(ZoneId.of("Asia/Shanghai"))
+        if (item.optString("due_on") > today.toString()) return false
+        val passed = ListeningRecallCheck.compare(line.en, text).perfect
+        val stage = if (passed) (item.optInt("stage") + 1).coerceAtMost(3) else 0
+        val interval = when (stage) { 0 -> 1L; 1 -> 7L; else -> 30L }
+        val events = root.optJSONArray("events") ?: JSONArray().also { root.put("events", it) }
+        events.put(
+            event("recall_retention", "", pack.id, line.id)
+                .put("passed", passed)
+                .put("stage", stage)
+                .put("due_on", item.optString("due_on"))
+                .put("checked_input", text.take(500))
+                .put("mode", "delayed_no_hint"),
+        )
+        item.put("stage", stage)
+        item.put("last_checked_on", today.toString())
+        item.put("due_on", today.plusDays(interval).toString())
+        changedRecall()
+        return passed
+    }
+
     @Synchronized fun markUploaded(ids: Set<String>) {
         val events = root.optJSONArray("events") ?: return
         for (i in 0 until events.length()) {
@@ -711,6 +838,7 @@ internal class ListeningStore(
         val result = ListeningRecallCheck.compare(line.en, answer)
         val after = before.check(answer.take(1000), result, recognitionCorrection)
         putRecall(pack, line, after)
+        if (after.passed && !before.passed) initializeRetestIfNeeded(pack, line)
         val events = root.optJSONArray("events") ?: JSONArray().also { root.put("events", it) }
         events.put(
             event("recall_checked", "", pack.id, line.id)
