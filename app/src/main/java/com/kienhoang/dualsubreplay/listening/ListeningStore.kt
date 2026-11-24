@@ -114,7 +114,8 @@ internal class ListeningStore(
         var pending = 0
         for (i in 0 until events.length()) {
             val e = events.optJSONObject(i) ?: continue
-            if (ListeningSyncPolicy.mayUpload(e.optBoolean("synced"))) pending++
+            if (!e.optBoolean("deleted") && ListeningSyncPolicy.mayUpload(e.optBoolean("synced"))) pending++
+            if (e.optBoolean("deleted") && e.optBoolean("synced") && !e.optBoolean("deletion_synced")) pending++
             val word = e.optString("word").lowercase()
             if (e.optString("type") == "saved") savedWords.add(word)
         }
@@ -158,8 +159,113 @@ internal class ListeningStore(
         val list = root.optJSONArray("events") ?: JSONArray()
         return (0 until list.length())
             .map { list.getJSONObject(it) }
-            .filter { ListeningSyncPolicy.mayUpload(it.optBoolean("synced")) }
+            .filter { !it.optBoolean("deleted") && ListeningSyncPolicy.mayUpload(it.optBoolean("synced")) }
             .map(::remoteEvent)
+    }
+
+    /** All on-device attempts, including already uploaded or remotely restored history. */
+    @Synchronized fun reviewableEvents(): List<JSONObject> {
+        val list = root.optJSONArray("events") ?: return emptyList()
+        return (0 until list.length())
+            .map { list.getJSONObject(it) }
+            .filter { it.optString("type") in setOf("recall_checked", "recall_insight") }
+            .map { JSONObject(it.toString()) }
+    }
+
+    /** Deletion is a soft local tombstone until the remote JSONL has been pruned. */
+    @Synchronized fun deleteReviewRecord(eventId: String) {
+        val list = root.optJSONArray("events") ?: return
+        val impacted = HashSet<String>()
+        for (i in 0 until list.length()) {
+            val item = list.getJSONObject(i)
+            if (item.optString("id") == eventId &&
+                item.optString("type") in setOf("recall_checked", "recall_insight")
+            ) impacted.add(item.optString("id"))
+        }
+        if (impacted.isEmpty()) return
+        // An insight tied to a deleted attempt should not survive as misleading evidence.
+        for (i in 0 until list.length()) {
+            val item = list.getJSONObject(i)
+            if (item.optString("source_event_id") in impacted && item.optString("type") == "recall_insight") {
+                impacted.add(item.optString("id"))
+            }
+        }
+        for (i in 0 until list.length()) {
+            val item = list.getJSONObject(i)
+            if (item.optString("id") in impacted && !item.optBoolean("deleted")) {
+                item.put("deleted", true)
+                item.put("delete_requested_at", OffsetDateTime.now().toString())
+                item.remove("deletion_synced")
+            }
+        }
+        changedRecall()
+    }
+
+    @Synchronized fun undoDeleteRecord(eventId: String) {
+        val list = root.optJSONArray("events") ?: return
+        for (i in 0 until list.length()) {
+            val item = list.getJSONObject(i)
+            if (item.optString("id") == eventId &&
+                item.optBoolean("deleted") && !item.optBoolean("deletion_synced")
+            ) {
+                item.remove("deleted")
+                item.remove("delete_requested_at")
+                changedRecall()
+                return
+            }
+        }
+    }
+
+    /** Pending deletion work is kept until the cloud tombstone AND JSONL pruning succeed. */
+    @Synchronized fun pendingDeletions(): List<JSONObject> {
+        val list = root.optJSONArray("events") ?: return emptyList()
+        return (0 until list.length())
+            .map { list.getJSONObject(it) }
+            .filter {
+                it.optBoolean("deleted") &&
+                    it.optBoolean("synced") &&
+                    !it.optBoolean("deletion_synced") &&
+                    it.optString("type") in setOf("recall_checked", "recall_insight")
+            }.map { JSONObject(it.toString()) }
+    }
+
+    @Synchronized fun markDeletionsSynced(ids: Set<String>) {
+        val list = root.optJSONArray("events") ?: return
+        for (i in 0 until list.length()) {
+            val item = list.getJSONObject(i)
+            if (item.optString("id") in ids && item.optBoolean("deleted")) {
+                item.put("deletion_synced", true)
+            }
+        }
+        changedRecall()
+    }
+
+    /** Import cloud history for on-device management, never overwrite locally edited states. */
+    @Synchronized fun importCloudReviewHistory(remote: List<JSONObject>, tombstones: Set<String>) {
+        val list = root.optJSONArray("events") ?: JSONArray().also { root.put("events", it) }
+        val existing = (0 until list.length()).map { list.getJSONObject(it) }
+        val byId = existing.associateBy { it.optString("id") }
+        var changed = false
+        for (item in existing) {
+            if (item.optString("id") in tombstones && !item.optBoolean("deleted")) {
+                item.put("deleted", true)
+                item.put("deletion_synced", true)
+                changed = true
+            }
+        }
+        for (raw in remote.take(15_000)) {
+            val id = raw.optString("id")
+            if (id.isBlank() || id in tombstones || byId.containsKey(id) ||
+                raw.optString("type") !in setOf("recall_checked", "recall_insight")
+            ) continue
+            list.put(
+                JSONObject(raw.toString())
+                    .put("synced", true)
+                    .put("cloud_imported", true),
+            )
+            changed = true
+        }
+        if (changed) changedRecall()
     }
 
     /**
@@ -172,7 +278,7 @@ internal class ListeningStore(
             val item = events.getJSONObject(index)
             if (item.optString("id") != eventId ||
                 item.optString("type") != "recall_checked" ||
-                item.optBoolean("synced")
+                item.optBoolean("deleted")
             ) continue
             if (item.optString("review_label") == "typo") {
                 item.remove("review_label")
@@ -189,7 +295,7 @@ internal class ListeningStore(
         val events = root.optJSONArray("events") ?: return emptySet()
         return (0 until events.length()).mapNotNull { index ->
             val item = events.getJSONObject(index)
-            if (item.optString("type") != "recall_insight") return@mapNotNull null
+            if (item.optString("type") != "recall_insight" || item.optBoolean("deleted")) return@mapNotNull null
             val sourceId = item.optString("source_event_id")
             val error = item.optString("selected_error")
             if (sourceId.isBlank() || error.isBlank()) null else
@@ -208,7 +314,7 @@ internal class ListeningStore(
         if (chosen.isBlank()) return
         val source = (0 until events.length()).map { events.getJSONObject(it) }
             .firstOrNull { it.optString("id") == sourceEventId &&
-                it.optString("type") == "recall_checked" && !it.optBoolean("passed") }
+                it.optString("type") == "recall_checked" && !it.optBoolean("passed") && !it.optBoolean("deleted") }
             ?: return
         val wrong = source.optJSONArray("wrong_words") ?: return
         if ((0 until wrong.length()).none { wrong.optString(it).equals(chosen, ignoreCase = true) }) return
@@ -219,7 +325,20 @@ internal class ListeningStore(
                 insight.optString("source_event_id") == sourceEventId &&
                 insight.optString("selected_error").equals(chosen, ignoreCase = true)
             ) {
-                if (insight.optBoolean("synced")) return
+                if (insight.optBoolean("deleted") && !insight.optBoolean("deletion_synced")) {
+                    insight.remove("deleted")
+                    insight.remove("delete_requested_at")
+                    changedRecall()
+                    return
+                }
+                if (insight.optBoolean("deleted")) continue
+                if (insight.optBoolean("synced")) {
+                    insight.put("deleted", true)
+                    insight.put("delete_requested_at", OffsetDateTime.now().toString())
+                    insight.remove("deletion_synced")
+                    changedRecall()
+                    return
+                }
                 val remaining = JSONArray()
                 for (j in 0 until events.length()) if (j != index) remaining.put(events.getJSONObject(j))
                 root.put("events", remaining)
@@ -288,7 +407,7 @@ internal class ListeningStore(
         val events = root.optJSONArray("events") ?: return
         for (i in 0 until events.length()) {
             val item = events.getJSONObject(i)
-            if (item.optString("id") in ids) item.put("synced", true)
+            if (item.optString("id") in ids && !item.optBoolean("deleted")) item.put("synced", true)
         }
         persist()
     }
@@ -459,6 +578,10 @@ internal class ListeningStore(
                 put("review_label", "previously_excluded")
             }
             remove("upload_excluded")
+            remove("deleted")
+            remove("deletion_synced")
+            remove("delete_requested_at")
+            remove("cloud_imported")
         }
 
     /** Practice preferences live in the listening JSON, not global app settings. */
