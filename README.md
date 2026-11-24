@@ -58,10 +58,16 @@
 | 同步前审核 | 按故事/句子折叠展示全部尝试、已上传历史和待处理记录；支持一键收藏错点、标记笔误、删除。确认时只上传待审核 ID，可补做断网期间失败的云端删除 |
 | 删除已上传历史 | 从 GitHub 读取历史后点删除：**手机立即移除，连接正常时直接按事件 ID 修改 GitHub 当前 JSONL**。离线或失败仅在本机待重试；不建立墓碑目录，也不保留云端删除日志。**Git 旧提交历史不会自动清除** |
 | 输入法数字容错 | 数字 `five ↔ 5`、`sixty ↔ 60` 与数字词按等价处理，避免把合法转写写法误计为听辨错误 |
+| 自由表达 Raw | 每句话可点「✎ 追加我的话」；对话末句还会展示一条开放式英语问题。原文直接本地保存，**不自动评分、翻译或改写**；点击「审核并同步 GitHub」后按 UUID 单条保存到私有 `english/data/raw_inbox/YYYY-MM-DD/<id>.json` |
+| 错误专项回流 | 人工收藏的错词留在 `english/data/insights/`；ChatGPT/Agent 可在明确要求下阅读重点错误与 Raw，在 `english/content/drills/<id>.json` 生成情景迁移练习，并更新 `content/manifest.json`。App 下次同步直接读取新包，**不需要 APK 更新** |
+| 隔天句子复查 | 首次通过后第二天到期；再次答对则安排 7 天后、之后 30 天；答错则次日再测。独立的延迟核对事件 `recall_retention` 记录结果，不覆盖首次成绩；无到期项时不虚构得分 |
+| 有效学习统计 | 使用首次独立核对正确率、延迟复查保持率和 Raw 表达数量；不把自动转写修正、提示后答对或刷次数当成首次独立正确，样本不足时明确写「数据不足」 |
+| 自适应推荐 | 至少五句有效的首次独立答题后，按真实正确率在相邻 CEFR 难度中保守推荐（≥80% 可尝试上一级，<40% 建议降一级）；用户可主动选推荐包，不会后台强制跳级。只衡量本次练习表现，不宣称达到 CEFR 正式等级 |
+| 发音边界 | 以手机系统语音输入能否转写清楚为当前实用目标，不新增实验性音素评分；听力文字核对与自由表达任务保持独立 |
 | 每日自动同步 | 自动获取故事和备份词汇，不上传未经审核的逐句记录。删除已上传记录在用户确认时直接执行；失败则可手动同步重试 |
 | App 更新 | 一键检查→按条件下载差分或完整 APK→校验→交给系统安装；显示已下载量、总大小和实时速度。系统要求的安装授权不能省略 |
 
-主要实现位置：[主页面顶部快捷键](app/src/main/java/com/kienhoang/dualsubreplay/ui/DualSubApp.kt) · [逐句界面](app/src/main/java/com/kienhoang/dualsubreplay/listening/ListeningRecallCard.kt) · [学习主页面](app/src/main/java/com/kienhoang/dualsubreplay/listening/ListeningScreen.kt) · [文字核对](app/src/main/java/com/kienhoang/dualsubreplay/listening/ListeningRecallCheck.kt) · [学习数据](app/src/main/java/com/kienhoang/dualsubreplay/listening/ListeningStore.kt) · [升级逻辑](app/src/main/java/com/kienhoang/dualsubreplay/update/AppUpdater.kt)。
+主要实现位置：[自由表达/延迟复查弹窗](app/src/main/java/com/kienhoang/dualsubreplay/listening/ListeningStudyDialogs.kt) · [学习指标](app/src/main/java/com/kienhoang/dualsubreplay/listening/ListeningLearningMetrics.kt) · [主页面顶部快捷键](app/src/main/java/com/kienhoang/dualsubreplay/ui/DualSubApp.kt) · [逐句界面](app/src/main/java/com/kienhoang/dualsubreplay/listening/ListeningRecallCard.kt) · [学习主页面](app/src/main/java/com/kienhoang/dualsubreplay/listening/ListeningScreen.kt) · [文字核对](app/src/main/java/com/kienhoang/dualsubreplay/listening/ListeningRecallCheck.kt) · [学习数据](app/src/main/java/com/kienhoang/dualsubreplay/listening/ListeningStore.kt) · [升级逻辑](app/src/main/java/com/kienhoang/dualsubreplay/update/AppUpdater.kt)。
 
 **验证边界：**上述内容是当前 `main` 中有实现的行为，不保证所有输入法、网络和手机机型已完成真机测试；当前最新可安装版本及构建状态请以 [Releases](https://github.com/z2846852/dual-sub-replay/releases/latest) 和 [Actions](https://github.com/z2846852/dual-sub-replay/actions/workflows/personal-fast-apk.yml) 为准，避免把 README 的描述当作现场构建结果。
 
@@ -78,7 +84,7 @@
 | 听辨复习与遗忘曲线 | 四档自评、FSRS-6 风格调度、未稳固词提醒 | main 已实现，数值需持续验证 |
 | AI 专项练习 | ChatGPT 根据已同步的学习事件生成对话包 | 目前由用户在 ChatGPT 中触发；尚未自动调度 |
 
-**注意：** 默认的 Google 自然语音首次下载需要网络，已缓存 MP3 可以离线播放；明确选择本机 TTS 时需设备具备对应的英语语音引擎或语音包。**GitHub 同步不等于自动调用 ChatGPT**，也不会自动产生新的英语文章。
+**注意：** Google 自然语音首次下载需要网络，已缓存 MP3 可离线播放；本机 TTS 依赖设备语音引擎。**GitHub 同步不是自动调用 ChatGPT**：AI 对 Raw 的分析及新练习生成需要通过明确的 ChatGPT/Agent 操作提交到 English 的 `main`，App 负责读取更新。
 
 ## 下载安装
 
@@ -146,8 +152,8 @@
 6. 点击英文单词收藏到本机生词簿；保存单词、原句和来源 ID。
 7. 在逐句复述中用键盘或系统语音输入答案：完全匹配自动变绿（允许常见缩写），失败需主动点核对；也可进入独立听辨复习，选择四档自评。
 8. 认为错误值得长期关注时主动「☆ 收藏有价值的错误」，选择类型并补充备注；普通核对事件仍自动保存在手机。
-9. 每句标题旁的 `!` 或底部「审核并同步 GitHub」都能按句查看历史：`☆` 收藏真正有价值的错词；真正的笔误可以「删除」，其他原始尝试保持不动，供以后统计。删除尚未上传的记录会在本地确认后清理。
-10. 已经上传的记录可加载后点「删除」：手机立即移除该条，在线时直接从 `english/main` 当前 JSONL 删除对应事件 ID；断网只在手机排队重试，**不上传墓碑或额外日志**。Git 旧提交仍可追溯，不能当成安全擦除。
+9. 每句标题旁的 `!` 或底部「审核并同步 GitHub」都能查看历史并收藏具体错词；真正笔误可单条删除。每句话点「✎ 追加我的话」可写 Raw，对话最后一句还有开放问题。Raw 保留你的原文，先存在本机。
+10. 已上传记录可从 `english/main` 删除；Raw 每条为独立文件，删除操作更新当前远端文件，不上传墓碑。隔天/7天/30天复查使用独立入口记录保持率；手动同步完成后，个性化内容包通过 manifest 下载。Git 旧提交仍可追溯，不等同安全擦除。
 
 本地未同步数据先写入持久化存储，GitHub 上传失败时保留待上传事件。**目前没有宣称已在任何指定手机上完成真机验证。**
 
@@ -170,7 +176,7 @@
 - 之后以北京时间为准，**每天第一次启动 App 且已经配置 PAT 时自动尝试同步一次内容和词汇记忆**，但不会自动上传未审阅的复述事件。
 - 其他打开、点击单词、听音、复习等操作不主动访问 GitHub。
 - 手动入口「审核并同步 GitHub」可按句折叠所有尝试，切换待处理、已上传、全部；支持针对**具体错词**一键收藏、标记笔误、明确删除记录。每句标题的 `!` 调用同一界面。已上传记录支持从 GitHub 取回；不是必须等到同步时才可操作。
-- **自动保存 ≠ 自动上传**：普通学习轨迹先存手机；人工审核后写入私有 `english/data/events/<device-id>/<YYYY-MM>.jsonl`。手选重点错误写入 `data/insights/`。删除已传事件直接使用 GitHub Contents API 和当前文件 SHA 移除目标 ID；如果文件被删空则直接删除该文件。成功后清除手机待删除队列，失败时手机保留重试，不创建额外云端文件。
+- **自动保存 ≠ 自动上传**：普通核对及隔天复查事件先存手机；人工审核后写入 `english/data/events/<device-id>/<YYYY-MM>.jsonl`。手选错点写 `data/insights/`，句后自由表达写 `data/raw_inbox/YYYY-MM-DD/<UUID>.json`（每条独立、原文不改）。删除使用当前 SHA 修改对应事件文件或删除 Raw 独立文件；失败时只在手机保留重试。
 - 生词事件使用 UUID 标识，通过读取、合并和 GitHub 文件 SHA 检查防止覆盖与重复。
 - 删除 PAT 不会清除本机的对话、词汇和学习记录。
 
