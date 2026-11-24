@@ -194,6 +194,11 @@ internal class ListeningStore(
                 item.optString("source_event_id") in ids
             ) ids.add(item.optString("id"))
         }
+        val affectedLines = (0 until entries.length())
+            .map { entries.getJSONObject(it) }
+            .filter { it.optString("id") in ids && it.optString("type") == "recall_checked" }
+            .map { it.optString("dialogue_id") to it.optString("line_id") }
+            .toSet()
         val retained = JSONArray()
         for (i in 0 until entries.length()) {
             val item = entries.getJSONObject(i)
@@ -206,7 +211,48 @@ internal class ListeningStore(
             // If unsynced, the actual local event is removed now, not tagged or uploaded.
         }
         root.put("events", retained)
+        affectedLines.forEach { (packId, lineId) -> rebuildRecallAfterDeletion(packId, lineId) }
         changedRecall()
+    }
+
+    /**
+     * A removed typo must not remain counted in the visible green/red status or attempt count.
+     * Rebuild the derived line progress from the remaining checked events, not from the
+     * now-deleted answer. Old remote submissions need not retain their original numbering.
+     */
+    private fun rebuildRecallAfterDeletion(packId: String, lineId: String) {
+        val all = root.optJSONObject("recall_progress") ?: return
+        val group = all.optJSONObject(packId) ?: return
+        val old = group.optJSONObject(lineId) ?: return
+        val reference = old.optString("reference")
+        if (reference.isBlank()) return
+        val entries = root.optJSONArray("events") ?: return
+        val remaining = (0 until entries.length())
+            .map { entries.getJSONObject(it) }
+            .filter {
+                it.optString("type") == "recall_checked" &&
+                    it.optString("dialogue_id") == packId &&
+                    it.optString("line_id") == lineId &&
+                    !it.optBoolean("deleted")
+            }.sortedBy { it.optString("created_at") }
+        if (remaining.isEmpty()) {
+            group.remove(lineId)
+            return
+        }
+        val pack = snapshot().packs.firstOrNull { it.id == packId } ?: return
+        val line = pack.lines.firstOrNull { it.id == lineId && it.en == reference } ?: return
+        var rebuilt = RecallLineProgress()
+        for (item in remaining) {
+            val answer = item.optString("checked_input")
+            if (answer.isBlank()) continue
+            rebuilt = rebuilt.hint(item.optInt("hint_level"))
+            rebuilt = rebuilt.check(
+                answer,
+                ListeningRecallCheck.compare(reference, answer),
+                item.optBoolean("recognition_correction"),
+            )
+        }
+        putRecall(pack, line, rebuilt)
     }
 
     /** Local retry queue only; there is no remote tombstone or second cloud collection. */
