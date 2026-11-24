@@ -8,6 +8,8 @@ import android.content.pm.PackageInstaller
 import android.content.pm.PackageManager
 import android.net.ConnectivityManager
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.widget.Toast
 import androidx.annotation.VisibleForTesting
 import androidx.core.content.IntentCompat
@@ -647,12 +649,12 @@ internal object AppUpdater {
             // An app installed in parts has no single APK to start from.
             if (!installed.splitSourceDirs.isNullOrEmpty()) {
                 ProblemLog.record(ProblemArea.APP_UPDATE, "PATCH_UNAVAILABLE_SPLIT_APK")
-                Toast.makeText(context, "当前安装包不支持差分，改用完整包", Toast.LENGTH_LONG).show()
+                showUpdateToast(context, "当前安装包不支持差分，改用完整包")
                 return null
             }
             if (patch.fromSha256 != null && sha256Of(File(installed.sourceDir)) != patch.fromSha256) {
                 ProblemLog.record(ProblemArea.APP_UPDATE, "PATCH_SOURCE_HASH_MISMATCH")
-                Toast.makeText(context, "当前 APK 与差分基线不一致，改用完整包", Toast.LENGTH_LONG).show()
+                showUpdateToast(context, "当前 APK 与差分基线不一致，改用完整包")
                 return null
             }
             if (downloadWithRetries(update, patchFile, patch.downloadUrl, patch.sizeBytes) != patch.sha256) {
@@ -674,11 +676,18 @@ internal object AppUpdater {
                 else -> "差分失败：${error.javaClass.simpleName}"
             }
             ProblemLog.record(ProblemArea.APP_UPDATE, "PATCH_FAILED_${error.javaClass.simpleName}_${error.message.orEmpty().take(80)}")
-            Toast.makeText(context, "$reason，自动改用完整包", Toast.LENGTH_LONG).show()
+            showUpdateToast(context, "$reason，自动改用完整包")
             null
         } finally {
             patchFile.delete()
             patched.delete()
+        }
+    }
+
+    /** Downloader runs on Dispatchers.IO; Android toast UI must be dispatched to the main thread. */
+    private fun showUpdateToast(context: Context, message: String) {
+        Handler(Looper.getMainLooper()).post {
+            Toast.makeText(context.applicationContext, message, Toast.LENGTH_LONG).show()
         }
     }
 
