@@ -273,7 +273,8 @@ class SubtitleWordHighlightTest {
                 BETA_BILIBILI_PREFERENCE,
                 BETA_BILIBILI_TV_PREFERENCE,
             )
-        assertEquals(expected, RESETTABLE_SETTING_KEYS.toSet())
+        val actual = RESETTABLE_SETTING_KEYS.toSet()
+        assertTrue("missing=${(expected - actual).sorted()} unexpected=${(actual - expected).sorted()}", expected == actual)
         assertEquals(RESETTABLE_SETTING_KEYS.size, RESETTABLE_SETTING_KEYS.distinct().size)
     }
 
