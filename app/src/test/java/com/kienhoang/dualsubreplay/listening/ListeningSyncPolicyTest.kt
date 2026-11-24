@@ -7,10 +7,9 @@ import org.junit.Test
 
 class ListeningSyncPolicyTest {
     @Test
-    fun excludedAndAlreadyUploadedRecordsDoNotEnterManualUpload() {
-        assertTrue(ListeningSyncPolicy.mayUpload(synced = false, excluded = false))
-        assertFalse(ListeningSyncPolicy.mayUpload(synced = false, excluded = true))
-        assertFalse(ListeningSyncPolicy.mayUpload(synced = true, excluded = false))
+    fun allUnsentRawAttemptsAreKeptForLaterDataCleaning() {
+        assertTrue(ListeningSyncPolicy.mayUpload(synced = false))
+        assertFalse(ListeningSyncPolicy.mayUpload(synced = true))
     }
 
     @Test
@@ -26,5 +25,16 @@ class ListeningSyncPolicyTest {
         assertEquals("insights", ListeningSyncPolicy.remoteCollection("recall_insight"))
         assertEquals("events", ListeningSyncPolicy.remoteCollection("recall_checked"))
         assertEquals("events", ListeningSyncPolicy.remoteCollection("saved"))
+    }
+
+    @Test
+    fun errorMarkingIsCaseInsensitiveButIsSpecificToTheAttempt() {
+        assertEquals(
+            ListeningSyncPolicy.errorKey("a", "Across"),
+            ListeningSyncPolicy.errorKey("a", "across"),
+        )
+        assertFalse(
+            ListeningSyncPolicy.errorKey("a", "across") == ListeningSyncPolicy.errorKey("b", "across"),
+        )
     }
 }

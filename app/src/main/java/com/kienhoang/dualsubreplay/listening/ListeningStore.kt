@@ -114,7 +114,7 @@ internal class ListeningStore(
         var pending = 0
         for (i in 0 until events.length()) {
             val e = events.optJSONObject(i) ?: continue
-            if (ListeningSyncPolicy.mayUpload(e.optBoolean("synced"), e.optBoolean("upload_excluded"))) pending++
+            if (ListeningSyncPolicy.mayUpload(e.optBoolean("synced"))) pending++
             val word = e.optString("word").lowercase()
             if (e.optString("type") == "saved") savedWords.add(word)
         }
@@ -158,29 +158,92 @@ internal class ListeningStore(
         val list = root.optJSONArray("events") ?: JSONArray()
         return (0 until list.length())
             .map { list.getJSONObject(it) }
-            .filter { ListeningSyncPolicy.mayUpload(it.optBoolean("synced"), it.optBoolean("upload_excluded")) }
+            .filter { ListeningSyncPolicy.mayUpload(it.optBoolean("synced")) }
             .map(::remoteEvent)
     }
 
-    /** Entries excluded in the preview remain on-device and can be restored before upload. */
-    @Synchronized fun excludedEvents(): List<JSONObject> {
-        val list = root.optJSONArray("events") ?: JSONArray()
-        return (0 until list.length())
-            .map { list.getJSONObject(it) }
-            .filter { !it.optBoolean("synced") && it.optBoolean("upload_excluded") }
-            .map(::remoteEvent)
-    }
-
-    @Synchronized fun setUploadExcluded(id: String, excluded: Boolean) {
+    /**
+     * Keep every attempted transcription as raw evidence. A typo label is analysis metadata,
+     * never a reason to discard the attempt or stop it from syncing.
+     */
+    @Synchronized fun toggleTypoLabel(eventId: String) {
         val events = root.optJSONArray("events") ?: return
-        for (i in 0 until events.length()) {
-            val item = events.getJSONObject(i)
-            if (item.optString("id") == id && !item.optBoolean("synced")) {
-                item.put("upload_excluded", excluded)
-                persist()
+        for (index in 0 until events.length()) {
+            val item = events.getJSONObject(index)
+            if (item.optString("id") != eventId ||
+                item.optString("type") != "recall_checked" ||
+                item.optBoolean("synced")
+            ) continue
+            if (item.optString("review_label") == "typo") {
+                item.remove("review_label")
+            } else {
+                item.put("review_label", "typo")
+            }
+            changedRecall()
+            return
+        }
+    }
+
+    /** Return links to selected, meaningful error points, including previously uploaded ones. */
+    @Synchronized fun bookmarkedErrorKeys(): Set<String> {
+        val events = root.optJSONArray("events") ?: return emptySet()
+        return (0 until events.length()).mapNotNull { index ->
+            val item = events.getJSONObject(index)
+            if (item.optString("type") != "recall_insight") return@mapNotNull null
+            val sourceId = item.optString("source_event_id")
+            val error = item.optString("selected_error")
+            if (sourceId.isBlank() || error.isBlank()) null else
+                ListeningSyncPolicy.errorKey(sourceId, error)
+        }.toSet()
+    }
+
+    /**
+     * One-tap curation of a single error from an attempted sentence.
+     * The underlying recall_checked event stays untouched and remains eligible for upload.
+     * Tapping again undoes only a not-yet-uploaded insight; uploaded Git history is immutable.
+     */
+    @Synchronized fun toggleBookmarkedError(sourceEventId: String, selectedError: String) {
+        val events = root.optJSONArray("events") ?: return
+        val chosen = selectedError.trim().take(80)
+        if (chosen.isBlank()) return
+        val source = (0 until events.length()).map { events.getJSONObject(it) }
+            .firstOrNull { it.optString("id") == sourceEventId &&
+                it.optString("type") == "recall_checked" && !it.optBoolean("passed") }
+            ?: return
+        val wrong = source.optJSONArray("wrong_words") ?: return
+        if ((0 until wrong.length()).none { wrong.optString(it).equals(chosen, ignoreCase = true) }) return
+
+        for (index in 0 until events.length()) {
+            val insight = events.getJSONObject(index)
+            if (insight.optString("type") == "recall_insight" &&
+                insight.optString("source_event_id") == sourceEventId &&
+                insight.optString("selected_error").equals(chosen, ignoreCase = true)
+            ) {
+                if (insight.optBoolean("synced")) return
+                val remaining = JSONArray()
+                for (j in 0 until events.length()) if (j != index) remaining.put(events.getJSONObject(j))
+                root.put("events", remaining)
+                changedRecall()
                 return
             }
         }
+        val packId = source.optString("dialogue_id")
+        val lineId = source.optString("line_id")
+        val pack = snapshot().packs.firstOrNull { it.id == packId }
+        val expected = pack?.lines?.firstOrNull { it.id == lineId }?.en.orEmpty()
+        events.put(
+            event("recall_insight", "", packId, lineId)
+                .put("category", "selected_error")
+                .put("source_event_id", sourceEventId)
+                .put("selected_error", chosen)
+                .put("expected", expected)
+                .put("observed", source.optString("checked_input"))
+                .put("source_attempts", source.optInt("attempt"))
+                .put("wrong_words", JSONArray().put(chosen))
+                .put("note", "")
+                .put("user_selected", true),
+        )
+        changedRecall()
     }
 
     /**
@@ -390,6 +453,11 @@ internal class ListeningStore(
     private fun remoteEvent(original: JSONObject): JSONObject =
         JSONObject(original.toString()).apply {
             remove("synced")
+            // Old versions allowed excluding mistakes from uploads. Retain that fact
+            // as an analysis label, while preserving the raw attempt for later cleaning.
+            if (original.optBoolean("upload_excluded") && !has("review_label")) {
+                put("review_label", "previously_excluded")
+            }
             remove("upload_excluded")
         }
 
