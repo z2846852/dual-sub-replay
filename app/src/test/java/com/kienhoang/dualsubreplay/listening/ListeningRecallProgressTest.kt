@@ -7,18 +7,18 @@ import org.junit.Test
 
 class ListeningRecallProgressTest {
     @Test
-    fun firstFailureDoesNotUnlockRedOnly() {
+    fun firstFailureUnlocksRedOnly() {
         val comparison = ListeningRecallCheck.compare("the shop", "a shop")
         val progress = RecallLineProgress().check("a shop", comparison, recognitionCorrection = false)
         assertEquals(1, progress.attempts)
         assertTrue(progress.failed)
-        assertFalse(progress.mayShowRedOnly())
+        assertTrue(progress.mayShowRedOnly())
         assertEquals("a shop", progress.firstAnswer)
         assertEquals(listOf("the"), progress.wrongWords)
     }
 
     @Test
-    fun secondFailureUnlocksRedOnlyButNotTheAnswer() {
+    fun secondFailureKeepsRedOnlyAvailableButDoesNotRevealAnswer() {
         val comparison = ListeningRecallCheck.compare("the shop", "a shop")
         val first = RecallLineProgress().check("a shop", comparison, recognitionCorrection = false)
         val second = first.check("a shop", comparison, recognitionCorrection = false)
@@ -27,6 +27,7 @@ class ListeningRecallProgressTest {
         assertEquals(2, second.attempts)
         assertEquals(1, second.hint(1).hintLevel)
         assertEquals(2, second.hint(2).hintLevel)
+        assertFalse(RecallLineProgress().mayShowRedOnly())
     }
 
     @Test

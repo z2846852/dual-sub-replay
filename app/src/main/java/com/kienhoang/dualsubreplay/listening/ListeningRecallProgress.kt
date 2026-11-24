@@ -45,5 +45,5 @@ internal data class RecallLineProgress(
 
     fun hint(level: Int): RecallLineProgress = copy(hintLevel = maxOf(hintLevel, level.coerceIn(0, 2)))
 
-    fun mayShowRedOnly(): Boolean = attempts >= 2 && failed
+    fun mayShowRedOnly(): Boolean = attempts >= 1 && failed
 }
