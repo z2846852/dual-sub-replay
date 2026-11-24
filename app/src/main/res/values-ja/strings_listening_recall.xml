@@ -23,7 +23,7 @@
     <string name="listening_recall_failed">不正解 · %1$d 回目</string>
     <string name="listening_recall_recognition_correction">音声認識の誤り？修正して再判定</string>
     <string name="listening_recall_correction_pending">この修正では試行回数が増えません</string>
-    <string name="listening_recall_red_only">誤りのみ</string>
+    <string name="listening_recall_show_meaning">中国語を見る</string>
     <string name="listening_recall_reveal">正解を見る</string>
     <string name="listening_recall_summary">正解 %1$d · 要復習 %2$d · 全 %3$d</string>
     <string name="listening_recall_status_passed">正解</string>
