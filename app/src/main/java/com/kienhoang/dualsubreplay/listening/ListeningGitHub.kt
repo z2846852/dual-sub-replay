@@ -189,18 +189,15 @@ internal class ListeningGitHub(
             val device = store.state.value.deviceId
             check(device.matches(Regex("[0-9a-fA-F-]{36}")))
             val path = "data/" + stream + "/" + device + "/" + month + ".jsonl"
-            val deletedIds = readRemoteTombstones(token, device, month)
             var successful = false
             for (attempt in 1..4) {
                 val existing = getFile(token, path)
                 val union = LinkedHashMap<String, JSONObject>()
                 existing?.first?.lineSequence()?.filter { it.isNotBlank() }?.forEach { raw ->
                     val e = JSONObject(raw)
-                    if (e.getString("id") !in deletedIds) union[e.getString("id")] = e
+                    union[e.getString("id")] = e
                 }
-                events.forEach {
-                    if (it.getString("id") !in deletedIds) union[it.getString("id")] = it
-                }
+                events.forEach { union[it.getString("id")] = it }
                 val content =
                     union.values
                         .sortedWith(compareBy({ it.optString("created_at") }, { it.optString("id") }))
@@ -226,66 +223,57 @@ internal class ListeningGitHub(
     }
 
 
-    /** Delete exact records from current remote JSONL after writing durable tombstones.
-     * This does not rewrite the Git commit history or guarantee secure erasure.
+    /**
+     * One local record maps to one ID in english/main's monthly JSONL.
+     * Remove that ID directly using GitHub Contents API with its SHA precondition.
+     * When the last record is removed, delete the empty JSONL file itself.
+     * Retry conflicts but never create cloud tombstones or audit collections.
      */
     private fun pushDeletions(token: String, approvedIds: Set<String>): Int {
-        val chosen = store.pendingDeletions().filter { it.optString("id") in approvedIds }
-        val grouped = chosen.groupBy { item ->
-            val device = item.optString("device_id")
-            val month = ListeningSyncPolicy.eventMonth(item.optString("created_at"))
-            require(ListeningSyncPolicy.validDeviceId(device) && month != null) {
-                "删除记录缺少有效的设备或年月"
+        val grouped = store.pendingDeletions()
+            .filter { it.optString("id") in approvedIds }
+            .groupBy { item ->
+                val device = item.optString("device_id")
+                val month = ListeningSyncPolicy.eventMonth(item.optString("created_at"))
+                require(ListeningSyncPolicy.validDeviceId(device) && month != null) {
+                    "记录缺少有效设备或日期，无法定位 GitHub 文件"
+                }
+                Triple(device, month, ListeningSyncPolicy.remoteCollection(item.optString("type")))
             }
-            device to month
-        }
+        var completed = 0
         for ((key, records) in grouped) {
-            val (device, month) = key
+            val (device, month, collection) = key
             val ids = records.map { it.getString("id") }.toSet()
-            val tombstones = records.map { original ->
-                JSONObject()
-                    .put("schema_version", 1)
-                    .put("id", original.getString("id"))
-                    .put("target_event_id", original.getString("id"))
-                    .put("device_id", device)
-                    .put("created_at", original.optString("delete_requested_at"))
-                    .put("source_month", month)
-                    .put("reason", "user_deleted")
-            }
-            updateJsonl(token, "data/deletions/$device/$month.jsonl", tombstones, emptySet())
-            for (stream in listOf("events", "insights")) {
-                updateJsonl(token, "data/$stream/$device/$month.jsonl", emptyList(), ids)
-            }
+            val path = "data/$collection/$device/$month.jsonl"
+            removeRemoteIds(token, path, ids)
             store.markDeletionsSynced(ids)
+            completed += ids.size
         }
-        return chosen.size
+        return completed
     }
 
-    private fun updateJsonl(token: String, path: String, additions: List<JSONObject>, removeIds: Set<String>) {
+    /** No new GitHub files: edit the current JSONL or delete it when empty. */
+    private fun removeRemoteIds(token: String, path: String, ids: Set<String>) {
         for (attempt in 1..4) {
-            val current = getFile(token, path)
-            if (current == null && additions.isEmpty()) return
-            val items = LinkedHashMap<String, JSONObject>()
-            current?.first?.lineSequence()?.filter { it.isNotBlank() }?.forEach { raw ->
-                val item = JSONObject(raw)
-                val id = item.optString("id")
-                if (id.isNotBlank() && id !in removeIds) items[id] = item
-            }
-            additions.forEach { item ->
-                if (item.getString("id") !in removeIds) items[item.getString("id")] = item
-            }
-            val value = items.values
-                .sortedWith(compareBy({ it.optString("created_at") }, { it.optString("id") }))
-                .joinToString(separator = "\n", postfix = if (items.isEmpty()) "" else "\n") { it.toString() }
-            if (current != null && current.first == value) return
-            require(value.toByteArray(Charsets.UTF_8).size <= 690_000) { "云端记录文件过大，拒绝覆盖" }
-            val requestBody = JSONObject()
-                .put("message", "Apply reviewed Replay history changes: " + path)
+            val existing = getFile(token, path) ?: return
+            val records = existing.first.lineSequence()
+                .filter { it.isNotBlank() }
+                .map { JSONObject(it) }
+                .filter { it.optString("id") !in ids }
+                .toList()
+            val originalCount = existing.first.lineSequence().count { it.isNotBlank() }
+            if (originalCount == records.size) return
+            val body = JSONObject()
+                .put("message", "Remove selected practice record(s) from $path")
                 .put("branch", "main")
-                .put("content", Base64.encodeToString(value.toByteArray(Charsets.UTF_8), Base64.NO_WRAP))
-            current?.second?.let { requestBody.put("sha", it) }
+                .put("sha", existing.second)
+            val method = if (records.isEmpty()) "DELETE" else "PUT"
+            if (records.isNotEmpty()) {
+                val content = records.joinToString(separator = "\n", postfix = "\n") { it.toString() }
+                body.put("content", Base64.encodeToString(content.toByteArray(Charsets.UTF_8), Base64.NO_WRAP))
+            }
             try {
-                request("PUT", base + "/contents/" + path, token, requestBody.toString())
+                request(method, base + "/contents/" + path, token, body.toString())
                 return
             } catch (error: GitHubHttpException) {
                 if (error.status !in listOf(409, 412, 422) || attempt == 4) throw error
@@ -293,26 +281,36 @@ internal class ListeningGitHub(
         }
     }
 
-    private fun readRemoteTombstones(token: String, device: String, month: String): Set<String> =
-        getFile(token, "data/deletions/$device/$month.jsonl")
-            ?.first
-            ?.lineSequence()
-            ?.filter { it.isNotBlank() }
-            ?.mapNotNull { runCatching { JSONObject(it).optString("target_event_id") }.getOrNull() }
-            ?.filter { it.isNotBlank() }
-            ?.toSet() ?: emptySet()
+    /** A delete action does not trigger download, word-memory backup, or an ordinary upload. */
+    suspend fun deletePendingHistoryNow(approvedIds: Set<String>): String =
+        mutex.withLock {
+            withContext(Dispatchers.IO) {
+                try {
+                    if (approvedIds.isEmpty()) return@withContext "没有待删除的云端记录"
+                    val token = vault.read() ?: return@withContext "未连接 GitHub，删除将在下次同步时重试"
+                    _status.value = "正在从 GitHub 删除所选记录…"
+                    verify(token)
+                    val count = pushDeletions(token, approvedIds)
+                    val message = "已从 GitHub 当前文件删除 $count 条记录"
+                    _status.value = message
+                    message
+                } catch (e: Exception) {
+                    val message = "GitHub 删除失败：" + safeError(e) + "；本地已删除，待重试"
+                    _status.value = message
+                    message
+                }
+            }
+        }
 
-
-    /** Load historical synced attempts and deletion markers into the local review list. */
+    /** Load existing GitHub history into the on-device review panel. */
     suspend fun refreshCloudReviewHistory(): String =
         mutex.withLock {
             withContext(Dispatchers.IO) {
                 try {
                     val token = vault.read() ?: return@withContext "未连接 GitHub"
                     _status.value = "正在读取 GitHub 历史记录…"
-                    val removed = HashSet<String>()
                     val attempts = ArrayList<JSONObject>()
-                    for (stream in listOf("deletions", "events", "insights")) {
+                    for (stream in listOf("events", "insights")) {
                         val devices = listChildren(token, "data/$stream")
                             .filter { it.first == "dir" && ListeningSyncPolicy.validDeviceId(it.second) }
                             .take(20)
@@ -324,22 +322,17 @@ internal class ListeningGitHub(
                                 val raw = getFile(token, "data/$stream/$device/$filename")?.first ?: continue
                                 for (line in raw.lineSequence().filter { it.isNotBlank() }) {
                                     val item = runCatching { JSONObject(line) }.getOrNull() ?: continue
-                                    if (stream == "deletions") {
-                                        val id = item.optString("target_event_id")
-                                        if (id.isNotBlank()) removed.add(id)
-                                    } else if (
+                                    if (
                                         item.optString("type") in setOf("recall_checked", "recall_insight") &&
                                         item.optString("device_id") == device &&
                                         item.optString("id").isNotBlank() &&
                                         attempts.size < 15_000
-                                    ) {
-                                        attempts.add(item)
-                                    }
+                                    ) attempts.add(item)
                                 }
                             }
                         }
                     }
-                    store.importCloudReviewHistory(attempts, removed)
+                    store.importCloudReviewHistory(attempts)
                     val msg = "已加载 " + attempts.size + " 条云端历史，可逐条审查、删除或收藏"
                     _status.value = msg
                     msg
