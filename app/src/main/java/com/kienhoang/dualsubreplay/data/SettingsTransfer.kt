@@ -110,6 +110,7 @@ internal val SETTING_SPECS: Map<String, SettingSpec> =
         "pronunciation_volume" to share(F),
         "phone_voice" to share(B),
         "tap_bar_reading" to share(B),
+        "tap_bar_save" to share(B),
         "tap_bar_copy" to share(B),
         "tap_bar_translate" to share(B),
         "tap_bar_pronounce" to share(B),
