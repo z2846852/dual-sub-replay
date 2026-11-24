@@ -47,6 +47,7 @@ internal fun ListeningUploadReviewDialog(
     bookmarked: Set<String>,
     pendingUploadCount: Int,
     pendingDeleteCount: Int,
+    statusMessage: String,
     busy: Boolean,
     onBookmark: (String, String) -> Unit,
     onTypo: (String) -> Unit,
@@ -95,6 +96,14 @@ internal fun ListeningUploadReviewDialog(
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.SemiBold,
                 )
+                if (statusMessage.isNotBlank()) {
+                    Text(
+                        statusMessage,
+                        color = if (statusMessage.contains("失败")) MaterialTheme.colorScheme.error
+                            else MaterialTheme.colorScheme.primary,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
                 if (focusedLineKey == null) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         listOf("all" to "全部", "pending" to "待处理", "cloud" to "已上传").forEach { (id, label) ->

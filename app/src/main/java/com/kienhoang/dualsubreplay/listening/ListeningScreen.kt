@@ -636,6 +636,7 @@ internal fun ListeningScreen(
             bookmarked = store.bookmarkedErrorKeys(),
             pendingUploadCount = store.pendingEvents().size,
             pendingDeleteCount = store.pendingDeletions().size,
+            statusMessage = message,
             busy = busy,
             onBookmark = store::toggleBookmarkedError,
             onTypo = store::toggleTypoLabel,
