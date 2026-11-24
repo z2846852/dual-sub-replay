@@ -23,7 +23,7 @@
     <string name="listening_recall_failed">불합격 · %1$d번째 시도</string>
     <string name="listening_recall_recognition_correction">음성 인식 오류인가요? 수정 후 재검사</string>
     <string name="listening_recall_correction_pending">수정 확인은 시도 횟수에 포함되지 않습니다</string>
-    <string name="listening_recall_red_only">오류만 표시</string>
+    <string name="listening_recall_show_meaning">중국어 뜻 보기</string>
     <string name="listening_recall_reveal">정답 보기</string>
     <string name="listening_recall_summary">통과 %1$d · 오답 %2$d · 전체 %3$d</string>
     <string name="listening_recall_status_passed">통과</string>
