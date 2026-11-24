@@ -1,5 +1,6 @@
 package com.kienhoang.dualsubreplay.listening
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -22,6 +23,7 @@ import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -135,11 +137,12 @@ internal fun ListeningScreen(
         Surface(Modifier.fillMaxSize()) {
             Scaffold(topBar = {
                 Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+                    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 3.dp),
                     verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    Icon(Icons.Default.Headphones, contentDescription = null)
-                    Text("  离线英语听力", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                    Icon(Icons.Default.Headphones, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                    Text("听力训练", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
                     TextButton(onClick = { showSettings = !showSettings }) { Text("设置") }
                     IconButton(onClick = onClose) { Icon(Icons.Default.Close, contentDescription = "返回 YouTube") }
                 }
@@ -148,22 +151,51 @@ internal fun ListeningScreen(
                     Modifier
                         .fillMaxSize()
                         .padding(inner)
-                        .padding(horizontal = 16.dp)
+                        .padding(horizontal = 14.dp)
                         .imePadding(),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(9.dp),
                 ) {
                     item {
-                        Text(
-                            "对话包 " + state.packs.size + " · 未上传 " + state.pending +
-                                " · 收藏词 " + state.saved + " · 到期复习 " + state.due +
-                                " · 未稳固 " + state.unestablished,
-                            style = MaterialTheme.typography.bodySmall,
+                        // Five real counters stay visible without a multi-line diagnostic log.
+                        val metrics = listOf(
+                            "故事" to state.packs.size,
+                            "待传" to state.pending,
+                            "词汇" to state.saved,
+                            "待复习" to state.due,
+                            "待巩固" to state.unestablished,
                         )
-                        Text(
-                            status,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                            horizontalArrangement = Arrangement.spacedBy(3.dp),
+                        ) {
+                            metrics.forEachIndexed { i, (name, count) ->
+                                Column(
+                                    modifier = Modifier.weight(1f),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(1.dp),
+                                ) {
+                                    Text(
+                                        count.toString(),
+                                        style = MaterialTheme.typography.titleMedium,
+                                        color = if (i == 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                                    )
+                                    Text(
+                                        name,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                    )
+                                }
+                            }
+                        }
+                        if (status.contains("失败") || status.startsWith("正在")) {
+                            Text(
+                                status,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (status.contains("失败")) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 2,
+                            )
+                        }
                     }
                     if (pack != null) {
                         item {
@@ -392,25 +424,56 @@ internal fun ListeningScreen(
                             val statuses = p.lines.map { store.recallProgress(p, it) }
                             val completed = statuses.count { it.passed }
                             val errors = statuses.count { it.failed }
-                            OutlinedButton(modifier = Modifier.fillMaxWidth(), onClick = {
-                                store.markPackUsed(p)
-                                currentId = p.id
-                                selectedLine = null
-                                word = null
-                                showText = false
-                                if (recallMode) {
-                                    wrongOnly = false
-                                    recallIndex = store.recallPosition(p)
-                                    ListeningPlayback.start(ctx, p, recallIndex, oneShot = true)
-                                } else if (playback.playing && playback.packId != p.id) {
-                                    ListeningPlayback.stop(ctx)
-                                }
-                            }) {
+                            val selected = p.id == pack?.id
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                onClick = {
+                                    store.markPackUsed(p)
+                                    currentId = p.id
+                                    selectedLine = null
+                                    word = null
+                                    showText = false
+                                    if (recallMode) {
+                                        wrongOnly = false
+                                        recallIndex = store.recallPosition(p)
+                                        ListeningPlayback.start(ctx, p, recallIndex, oneShot = true)
+                                    } else if (playback.playing && playback.packId != p.id) {
+                                        ListeningPlayback.stop(ctx)
+                                    }
+                                },
+                                shape = RoundedCornerShape(14.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor =
+                                        if (selected) MaterialTheme.colorScheme.primaryContainer
+                                        else MaterialTheme.colorScheme.surfaceContainerLow,
+                                ),
+                                border = BorderStroke(
+                                    if (selected) 1.5.dp else 1.dp,
+                                    if (selected) MaterialTheme.colorScheme.primary
+                                    else MaterialTheme.colorScheme.outlineVariant,
+                                ),
+                            ) {
                                 Column(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
+                                    verticalArrangement = Arrangement.spacedBy(6.dp),
                                 ) {
-                                    Text((if (p.id == pack?.id) "● " else "") + p.title + " · " + p.level)
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(7.dp),
+                                    ) {
+                                        Text(
+                                            (if (selected) "● " else "") + p.title,
+                                            style = MaterialTheme.typography.titleSmall,
+                                            modifier = Modifier.weight(1f),
+                                            maxLines = 1,
+                                        )
+                                        Text(
+                                            p.level,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.primary,
+                                        )
+                                    }
                                     Text(
                                         stringResource(
                                             R.string.listening_recall_pack_summary,
@@ -419,22 +482,20 @@ internal fun ListeningScreen(
                                             errors,
                                         ),
                                         style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.spacedBy(2.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(3.dp),
                                     ) {
-                                        statuses.forEach { item ->
-                                            val color =
-                                                when {
-                                                    item.passed -> MaterialTheme.colorScheme.tertiary
-                                                    item.failed -> MaterialTheme.colorScheme.error
-                                                    else -> MaterialTheme.colorScheme.surfaceVariant
-                                                }
+                                        statuses.forEach { result ->
+                                            val color = when {
+                                                result.passed -> MaterialTheme.colorScheme.tertiary
+                                                result.failed -> MaterialTheme.colorScheme.error
+                                                else -> MaterialTheme.colorScheme.surfaceVariant
+                                            }
                                             Box(
-                                                Modifier
-                                                    .weight(1f)
-                                                    .height(6.dp)
+                                                Modifier.weight(1f).height(5.dp)
                                                     .clip(RoundedCornerShape(3.dp))
                                                     .background(color),
                                             )
