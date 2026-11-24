@@ -1,5 +1,6 @@
 package com.kienhoang.dualsubreplay.listening
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -23,10 +24,12 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -134,10 +137,15 @@ internal fun ListeningRecallCard(
         }
     }
 
-    Card(Modifier.fillMaxWidth()) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+    ) {
         Column(
-            modifier = Modifier.fillMaxWidth().padding(10.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(7.dp),
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -156,10 +164,20 @@ internal fun ListeningRecallCard(
                     maxLines = 1,
                     modifier = Modifier.weight(1f),
                 )
-                Text("${index + 1}/${pack.lines.size}", style = MaterialTheme.typography.labelMedium)
+                Text(
+                    "${index + 1}/${pack.lines.size}",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
                 TextButton(
                     onClick = onOpenReview,
-                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp),
+                    modifier = Modifier.size(width = 40.dp, height = 40.dp).testTag("recall_history"),
+                    shape = RoundedCornerShape(12.dp),
+                    contentPadding = PaddingValues(0.dp),
+                    colors = ButtonDefaults.textButtonColors(
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                    ),
                 ) { Text("!", style = MaterialTheme.typography.titleMedium) }
             }
             if (error != null) {
@@ -228,7 +246,9 @@ internal fun ListeningRecallCard(
                             contentColor =
                                 if (verifiedPass) MaterialTheme.colorScheme.onTertiary else MaterialTheme.colorScheme.onPrimary,
                         ),
-                    modifier = Modifier.weight(1f).testTag("recall_check"),
+                    shape = RoundedCornerShape(12.dp),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                    modifier = Modifier.weight(0.9f).height(44.dp).testTag("recall_check"),
                 ) { Text(stringResource(R.string.listening_recall_check)) }
                 if (progress.attempts > 0) {
                     Text(
@@ -244,57 +264,80 @@ internal fun ListeningRecallCard(
                     )
                 }
             }
-            if (progress.failed) {
-                TextButton(
-                    onClick = {
-                        correctionPending = true
-                        revealed = 0
-                    },
-                    contentPadding = PaddingValues(horizontal = 2.dp, vertical = 0.dp),
-                ) { Text(stringResource(R.string.listening_recall_recognition_correction)) }
-            }
+            // Inline tools: quick feedback stays visible, while correction and bookmarking share one row.
             if (progress.attempts > 0) {
-                TextButton(onClick = { showInsightEditor = true }) {
-                    Text(if (insightSaved) "★ 已收藏此错误" else "☆ 收藏有价值的错误")
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    if (progress.failed) {
+                        TextButton(
+                            onClick = {
+                                correctionPending = true
+                                revealed = 0
+                            },
+                            modifier = Modifier.weight(1f).height(40.dp),
+                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp),
+                        ) {
+                            Text(
+                                stringResource(R.string.listening_recall_recognition_correction),
+                                style = MaterialTheme.typography.labelMedium,
+                                maxLines = 2,
+                            )
+                        }
+                    }
+                    TextButton(
+                        onClick = { showInsightEditor = true },
+                        modifier = Modifier.weight(1f).height(40.dp),
+                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp),
+                    ) {
+                        Text(
+                            if (insightSaved) "★ 已收藏" else "☆ 收藏错点",
+                            style = MaterialTheme.typography.labelMedium,
+                        )
+                    }
                 }
             }
             if (correctionPending) {
                 Text(
                     stringResource(R.string.listening_recall_correction_pending),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.labelSmall,
                 )
             }
-
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 OutlinedButton(
                     onClick = {
                         onSaveDraft(answer)
                         onPlayLine(index)
                     },
-                    modifier = Modifier.weight(1f).testTag("recall_replay"),
-                    contentPadding = PaddingValues(horizontal = 5.dp),
-                ) { Text(stringResource(R.string.listening_recall_replay), maxLines = 1) }
+                    modifier = Modifier.weight(1f).height(42.dp).testTag("recall_replay"),
+                    shape = RoundedCornerShape(12.dp),
+                    contentPadding = PaddingValues(horizontal = 5.dp, vertical = 0.dp),
+                ) { Text(stringResource(R.string.listening_recall_replay), style = MaterialTheme.typography.labelMedium, maxLines = 1) }
                 OutlinedButton(
                     enabled = progress.mayShowRedOnly() && checkedCurrent && comparison?.perfect == false,
                     onClick = {
                         revealed = 1
                         onHint(1)
                     },
-                    modifier = Modifier.weight(1f).testTag("recall_red_only"),
-                    contentPadding = PaddingValues(horizontal = 5.dp),
-                ) { Text(stringResource(R.string.listening_recall_red_only), maxLines = 1) }
+                    modifier = Modifier.weight(1f).height(42.dp).testTag("recall_red_only"),
+                    shape = RoundedCornerShape(12.dp),
+                    contentPadding = PaddingValues(horizontal = 5.dp, vertical = 0.dp),
+                ) { Text(stringResource(R.string.listening_recall_red_only), style = MaterialTheme.typography.labelMedium, maxLines = 1) }
                 OutlinedButton(
                     onClick = {
                         revealed = 2
                         onHint(2)
                     },
-                    modifier = Modifier.weight(1f).testTag("recall_reveal"),
-                    contentPadding = PaddingValues(horizontal = 5.dp),
-                ) { Text(stringResource(R.string.listening_recall_reveal), maxLines = 1) }
+                    modifier = Modifier.weight(1f).height(42.dp).testTag("recall_reveal"),
+                    shape = RoundedCornerShape(12.dp),
+                    contentPadding = PaddingValues(horizontal = 5.dp, vertical = 0.dp),
+                ) { Text(stringResource(R.string.listening_recall_reveal), style = MaterialTheme.typography.labelMedium, maxLines = 1) }
             }
             if (revealed >= 1 && checkedCurrent && comparison != null && !comparison.perfect) {
                 Text(
@@ -406,42 +449,43 @@ internal fun ListeningRecallCard(
                     }
                 }
             }
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(2.dp),
+                horizontalArrangement = Arrangement.spacedBy(5.dp),
             ) {
                 Checkbox(
                     checked = autoNext,
                     onCheckedChange = onSetAutoNext,
-                    modifier = Modifier.size(36.dp).testTag("recall_auto_next"),
+                    modifier = Modifier.size(40.dp).testTag("recall_auto_next"),
                 )
                 Text(
                     stringResource(R.string.listening_recall_auto_next),
-                    style = MaterialTheme.typography.labelMedium,
-                    modifier = Modifier.clickable { onSetAutoNext(!autoNext) },
+                    style = MaterialTheme.typography.labelSmall,
+                    maxLines = 2,
+                    modifier = Modifier.weight(1f).clickable { onSetAutoNext(!autoNext) },
                 )
-            }
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.fillMaxWidth(),
-            ) {
                 OutlinedButton(
                     onClick = {
                         onSaveDraft(answer)
                         previousIndex?.let(onPlayLine)
                     },
                     enabled = previousIndex != null,
-                    modifier = Modifier.weight(1f),
-                ) { Text(stringResource(R.string.listening_recall_previous)) }
+                    modifier = Modifier.size(width = 45.dp, height = 44.dp).testTag("recall_previous"),
+                    shape = RoundedCornerShape(12.dp),
+                    contentPadding = PaddingValues(0.dp),
+                ) { Text("‹", style = MaterialTheme.typography.titleLarge) }
                 Button(
                     onClick = {
                         onSaveDraft(answer)
                         nextIndex?.let(onPlayLine)
                     },
                     enabled = nextIndex != null,
-                    modifier = Modifier.weight(1f).testTag("recall_next"),
-                ) { Text(stringResource(R.string.listening_recall_next)) }
+                    modifier = Modifier.height(44.dp).testTag("recall_next"),
+                    shape = RoundedCornerShape(12.dp),
+                    contentPadding = PaddingValues(horizontal = 13.dp, vertical = 0.dp),
+                ) { Text(stringResource(R.string.listening_recall_next), style = MaterialTheme.typography.labelLarge) }
             }
         }
     }
