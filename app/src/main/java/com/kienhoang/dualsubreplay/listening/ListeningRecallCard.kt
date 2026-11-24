@@ -113,9 +113,7 @@ internal fun ListeningRecallCard(
 
     // Passing is automatic; incorrect partial dictation never creates an attempt or a hint.
     LaunchedEffect(answer, playing, line.en) {
-        if (!playing && answer.isNotBlank() && !progress.passed &&
-            ListeningRecallCheck.compare(line.en, answer).perfect
-        ) {
+        if (shouldAutoPassRecall(answer, line.en, playing, progress.passed)) {
             checkAnswer()
         }
     }

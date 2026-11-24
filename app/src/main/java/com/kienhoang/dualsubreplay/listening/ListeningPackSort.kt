@@ -32,6 +32,31 @@ internal fun sortListeningPacks(
     when (sort) {
         ListeningPackSort.RECENT -> packs.sortedByDescending { recentUse[it.id] ?: 0L }
         ListeningPackSort.LEVEL_ASC -> packs.sortedBy { listeningLevelRank(it.level) }
-        ListeningPackSort.LEVEL_DESC -> packs.sortedBy { -listeningLevelRank(it.level).coerceAtMost(6) }
+        ListeningPackSort.LEVEL_DESC ->
+            packs.sortedWith(
+                compareBy<ListeningPack> { listeningLevelRank(it.level) == 99 }
+                    .thenByDescending { listeningLevelRank(it.level) },
+            )
         ListeningPackSort.TITLE -> packs.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.title })
     }
+
+/** No incorrect transcription produces an automatic failed attempt or uncovers the answer. */
+internal fun shouldAutoPassRecall(
+    answer: String,
+    original: String,
+    playing: Boolean,
+    alreadyPassed: Boolean,
+): Boolean =
+    !playing && !alreadyPassed && answer.isNotBlank() &&
+        ListeningRecallCheck.compare(original, answer).perfect
+
+/** Auto advance never wraps to the beginning of a pack, including wrong-only practice. */
+internal fun nextAutomaticRecallIndex(
+    current: Int,
+    last: Int,
+    wrongOnly: Boolean,
+    remainingWrong: List<Int>,
+): Int? {
+    if (current >= last) return null
+    return if (wrongOnly) remainingWrong.firstOrNull { it > current } else current + 1
+}

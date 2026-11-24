@@ -217,14 +217,21 @@ internal fun ListeningScreen(
                                     autoNext = store.recallAutoNext(),
                                     onSetAutoNext = store::setRecallAutoNext,
                                     onAutoAdvance = {
-                                        val target =
+                                        val remaining =
                                             if (wrongOnly) {
-                                                pack.lines.indices.firstOrNull { i ->
-                                                    i > recallIndex && store.recallProgress(pack, pack.lines[i]).failed
+                                                pack.lines.indices.filter { i ->
+                                                    store.recallProgress(pack, pack.lines[i]).failed
                                                 }
                                             } else {
-                                                (recallIndex + 1).takeIf { it <= pack.lines.lastIndex }
+                                                emptyList()
                                             }
+                                        val target =
+                                            nextAutomaticRecallIndex(
+                                                recallIndex,
+                                                pack.lines.lastIndex,
+                                                wrongOnly,
+                                                remaining,
+                                            )
                                         target?.let(::playLine)
                                     },
                                     onToggleWrongOnly = {
