@@ -231,12 +231,26 @@ internal class ListeningStore(
 
     @Synchronized fun markDeletionsSynced(ids: Set<String>) {
         val list = root.optJSONArray("events") ?: return
+        val remaining = JSONArray()
         for (i in 0 until list.length()) {
             val item = list.getJSONObject(i)
-            if (item.optString("id") in ids && item.optBoolean("deleted")) {
-                item.put("deletion_synced", true)
-            }
+            // Current GitHub files were pruned and a remote tombstone was written.
+            if (item.optString("id") !in ids || !item.optBoolean("deleted")) remaining.put(item)
         }
+        root.put("events", remaining)
+        changedRecall()
+    }
+
+    /** A deleted never-uploaded typo has no remote record to remove. */
+    @Synchronized fun purgeDeletedLocalDrafts() {
+        val list = root.optJSONArray("events") ?: return
+        val remaining = JSONArray()
+        for (i in 0 until list.length()) {
+            val item = list.getJSONObject(i)
+            if (!(item.optBoolean("deleted") && !item.optBoolean("synced"))) remaining.put(item)
+        }
+        if (remaining.length() == list.length()) return
+        root.put("events", remaining)
         changedRecall()
     }
 
