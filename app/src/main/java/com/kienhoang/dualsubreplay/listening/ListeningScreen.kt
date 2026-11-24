@@ -249,6 +249,28 @@ internal fun ListeningScreen(
                                         }
                                     }
                                 }
+                                val personal = orderedPacks.filter { it.kind == "personal_drill" }
+                                if (personal.isNotEmpty()) {
+                                    val target = personal.firstOrNull { it.id != pack.id } ?: personal.first()
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    ) {
+                                        Text(
+                                            "🎯 个人错点专项 " + personal.size + " 份",
+                                            style = MaterialTheme.typography.labelMedium,
+                                            modifier = Modifier.weight(1f),
+                                        )
+                                        TextButton(onClick = {
+                                            currentId = target.id
+                                            recallMode = true
+                                            recallIndex = store.recallPosition(target)
+                                            store.markPackUsed(target)
+                                            ListeningPlayback.start(ctx, target, recallIndex, oneShot = true)
+                                        }) { Text("练习 " + target.level) }
+                                    }
+                                }
                             }
                         }
                         item {
