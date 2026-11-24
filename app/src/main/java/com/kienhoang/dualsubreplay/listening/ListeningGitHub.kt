@@ -118,15 +118,24 @@ internal class ListeningGitHub(
         _status.value = "PAT 已清除，本地单词和对话仍保留"
     }
 
-    suspend fun syncNow(approvedEventIds: Set<String> = emptySet()): String =
+    suspend fun syncNow(
+        approvedEventIds: Set<String> = emptySet(),
+        approvedDeletionIds: Set<String> = emptySet(),
+    ): String =
         mutex.withLock {
             withContext(Dispatchers.IO) {
                 try {
                     val token = vault.read() ?: return@withContext "未配置 PAT，请先连接 GitHub".also { _status.value = it }
-                    _status.value = if (approvedEventIds.isNotEmpty()) "正在上传已审核的学习记录…" else "正在获取学习内容…"
+                    _status.value =
+                        if (approvedEventIds.isNotEmpty() || approvedDeletionIds.isNotEmpty()) {
+                            "正在应用审核通过的上传与删除…"
+                        } else {
+                            "正在获取学习内容…"
+                        }
                     verify(token)
+                    val deleted = if (approvedDeletionIds.isNotEmpty()) pushDeletions(token, approvedDeletionIds) else 0
                     val sent = if (approvedEventIds.isNotEmpty()) pushPending(token, approvedEventIds) else 0
-                    _status.value = if (approvedEventIds.isNotEmpty()) {
+                    _status.value = if (approvedEventIds.isNotEmpty() || approvedDeletionIds.isNotEmpty()) {
                         "已上传 " + sent + " 条学习事件，正在备份词汇记忆…"
                     } else {
                         "自动同步不上传未经审核的逐句记录，正在备份词汇记忆…"
@@ -139,7 +148,8 @@ internal class ListeningGitHub(
                     // Sync completion immediately queues cached natural audio for every distinct sentence.
                     // The cache worker is resumable and rate-limited; GitHub sync returns without waiting.
                     ListeningVoicePrefetch.schedule(application, store.state.value.packs)
-                    val msg = "同步完成：上传 " + sent + " 条事件、备份词汇记忆，获取 " + packs.size + " 个对话包"
+                    val msg = "同步完成：上传 " + sent + " 条事件、云端删除 " + deleted +
+                        " 条、备份词汇记忆，获取 " + packs.size + " 个对话包"
                     _status.value = msg
                     msg
                 } catch (e: Exception) {
@@ -179,15 +189,18 @@ internal class ListeningGitHub(
             val device = store.state.value.deviceId
             check(device.matches(Regex("[0-9a-fA-F-]{36}")))
             val path = "data/" + stream + "/" + device + "/" + month + ".jsonl"
+            val deletedIds = readRemoteTombstones(token, device, month)
             var successful = false
             for (attempt in 1..4) {
                 val existing = getFile(token, path)
                 val union = LinkedHashMap<String, JSONObject>()
                 existing?.first?.lineSequence()?.filter { it.isNotBlank() }?.forEach { raw ->
                     val e = JSONObject(raw)
-                    union[e.getString("id")] = e
+                    if (e.getString("id") !in deletedIds) union[e.getString("id")] = e
                 }
-                events.forEach { union[it.getString("id")] = it }
+                events.forEach {
+                    if (it.getString("id") !in deletedIds) union[it.getString("id")] = it
+                }
                 val content =
                     union.values
                         .sortedWith(compareBy({ it.optString("created_at") }, { it.optString("id") }))
@@ -211,6 +224,83 @@ internal class ListeningGitHub(
         }
         return pending.size
     }
+
+
+    /** Delete exact records from current remote JSONL after writing durable tombstones.
+     * This does not rewrite the Git commit history or guarantee secure erasure.
+     */
+    private fun pushDeletions(token: String, approvedIds: Set<String>): Int {
+        val chosen = store.pendingDeletions().filter { it.optString("id") in approvedIds }
+        val grouped = chosen.groupBy { item ->
+            val device = item.optString("device_id")
+            val month = ListeningSyncPolicy.eventMonth(item.optString("created_at"))
+            require(ListeningSyncPolicy.validDeviceId(device) && month != null) {
+                "删除记录缺少有效的设备或年月"
+            }
+            device to month
+        }
+        for ((key, records) in grouped) {
+            val (device, month) = key
+            val ids = records.map { it.getString("id") }.toSet()
+            val tombstones = records.map { original ->
+                JSONObject()
+                    .put("schema_version", 1)
+                    .put("id", original.getString("id"))
+                    .put("target_event_id", original.getString("id"))
+                    .put("device_id", device)
+                    .put("created_at", original.optString("delete_requested_at"))
+                    .put("source_month", month)
+                    .put("reason", "user_deleted")
+            }
+            updateJsonl(token, "data/deletions/$device/$month.jsonl", tombstones, emptySet())
+            for (stream in listOf("events", "insights")) {
+                updateJsonl(token, "data/$stream/$device/$month.jsonl", emptyList(), ids)
+            }
+            store.markDeletionsSynced(ids)
+        }
+        return chosen.size
+    }
+
+    private fun updateJsonl(token: String, path: String, additions: List<JSONObject>, removeIds: Set<String>) {
+        for (attempt in 1..4) {
+            val current = getFile(token, path)
+            if (current == null && additions.isEmpty()) return
+            val items = LinkedHashMap<String, JSONObject>()
+            current?.first?.lineSequence()?.filter { it.isNotBlank() }?.forEach { raw ->
+                val item = JSONObject(raw)
+                val id = item.optString("id")
+                if (id.isNotBlank() && id !in removeIds) items[id] = item
+            }
+            additions.forEach { item ->
+                if (item.getString("id") !in removeIds) items[item.getString("id")] = item
+            }
+            val value = items.values
+                .sortedWith(compareBy({ it.optString("created_at") }, { it.optString("id") }))
+                .joinToString(separator = "\n", postfix = if (items.isEmpty()) "" else "\n") { it.toString() }
+            if (current != null && current.first == value) return
+            require(value.toByteArray(Charsets.UTF_8).size <= 690_000) { "云端记录文件过大，拒绝覆盖" }
+            val requestBody = JSONObject()
+                .put("message", "Apply reviewed Replay history changes: " + path)
+                .put("branch", "main")
+                .put("content", Base64.encodeToString(value.toByteArray(Charsets.UTF_8), Base64.NO_WRAP))
+            current?.second?.let { requestBody.put("sha", it) }
+            try {
+                request("PUT", base + "/contents/" + path, token, requestBody.toString())
+                return
+            } catch (error: GitHubHttpException) {
+                if (error.status !in listOf(409, 412, 422) || attempt == 4) throw error
+            }
+        }
+    }
+
+    private fun readRemoteTombstones(token: String, device: String, month: String): Set<String> =
+        getFile(token, "data/deletions/$device/$month.jsonl")
+            ?.first
+            ?.lineSequence()
+            ?.filter { it.isNotBlank() }
+            ?.mapNotNull { runCatching { JSONObject(it).optString("target_event_id") }.getOrNull() }
+            ?.filter { it.isNotBlank() }
+            ?.toSet() ?: emptySet()
 
     /**
      * Store a device-specific checkpoint. One checkpoint per device keeps concurrent phones from
