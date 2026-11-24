@@ -145,6 +145,18 @@ internal fun ListeningScreen(
                 ) {
                     Icon(Icons.Default.Headphones, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                     Text("听力训练", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                    TextButton(enabled = !busy, onClick = {
+                        if (!connected) {
+                            showSettings = true
+                            message = "请先在设置中连接 English 仓库的 GitHub PAT"
+                        } else {
+                            busy = true
+                            scope.launch {
+                                try { message = github.refreshContentNow() }
+                                finally { busy = false }
+                            }
+                        }
+                    }) { Text("同步文章") }
                     TextButton(onClick = { showSettings = !showSettings }) { Text("设置") }
                     IconButton(onClick = onClose) { Icon(Icons.Default.Close, contentDescription = "返回 YouTube") }
                 }
@@ -190,7 +202,7 @@ internal fun ListeningScreen(
                                 }
                             }
                         }
-                        if (status.contains("失败") || status.startsWith("正在")) {
+                        if (status.contains("失败") || status.startsWith("正在") || status.startsWith("同步完成") || status.startsWith("未配置")) {
                             Text(
                                 status,
                                 style = MaterialTheme.typography.labelSmall,
