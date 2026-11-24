@@ -23,6 +23,8 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -95,7 +97,9 @@ internal fun ListeningScreen(
     val status by github.status.collectAsStateWithLifecycle()
     val playback by ListeningPlayback.state.collectAsStateWithLifecycle()
     var currentId by remember { mutableStateOf<String?>(null) }
-    val pack = state.packs.firstOrNull { it.id == currentId } ?: state.packs.firstOrNull()
+    val packSort = store.recallSort()
+    val orderedPacks = sortListeningPacks(state.packs, packSort, store.recallRecentUsage())
+    val pack = orderedPacks.firstOrNull { it.id == currentId } ?: orderedPacks.firstOrNull()
     var word by remember { mutableStateOf<String?>(null) }
     var selectedLine by remember { mutableStateOf<ListeningLine?>(null) }
     var pat by remember { mutableStateOf("") }
@@ -104,6 +108,7 @@ internal fun ListeningScreen(
     var message by remember { mutableStateOf("") }
     var showSettings by remember { mutableStateOf(false) }
     var showText by remember { mutableStateOf(false) }
+    var showSortMenu by remember { mutableStateOf(false) }
     var recallMode by remember { mutableStateOf(false) }
     var recallIndex by remember(pack?.id) { mutableStateOf(pack?.let(store::recallPosition) ?: 0) }
     var wrongOnly by remember(pack?.id) { mutableStateOf(false) }
@@ -209,6 +214,26 @@ internal fun ListeningScreen(
                                     previousIndex = previousIndex,
                                     nextIndex = nextIndex,
                                     wrongOnly = wrongOnly,
+                                    autoNext = store.recallAutoNext(),
+                                    onSetAutoNext = store::setRecallAutoNext,
+                                    onAutoAdvance = {
+                                        val remaining =
+                                            if (wrongOnly) {
+                                                pack.lines.indices.filter { i ->
+                                                    store.recallProgress(pack, pack.lines[i]).failed
+                                                }
+                                            } else {
+                                                emptyList()
+                                            }
+                                        val target =
+                                            nextAutomaticRecallIndex(
+                                                recallIndex,
+                                                pack.lines.lastIndex,
+                                                wrongOnly,
+                                                remaining,
+                                            )
+                                        target?.let(::playLine)
+                                    },
                                     onToggleWrongOnly = {
                                         if (wrongOnly) {
                                             wrongOnly = false
@@ -272,6 +297,157 @@ internal fun ListeningScreen(
                                         selectedLine = line
                                     },
                                 )
+                            }
+                        }
+                    }
+                    if (state.packs.isEmpty()) {
+                        item {
+                            Text(
+                                stringResource(R.string.listening_recall_no_stories),
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                        }
+                    } else {
+                        item {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    stringResource(R.string.listening_recall_stories),
+                                    style = MaterialTheme.typography.titleSmall,
+                                    modifier = Modifier.weight(1f),
+                                )
+                                Box {
+                                    val sortLabel =
+                                        when (packSort) {
+                                            ListeningPackSort.RECENT -> R.string.listening_recall_sort_recent
+                                            ListeningPackSort.LEVEL_ASC -> R.string.listening_recall_sort_easy
+                                            ListeningPackSort.LEVEL_DESC -> R.string.listening_recall_sort_hard
+                                            ListeningPackSort.TITLE -> R.string.listening_recall_sort_title
+                                        }
+                                    TextButton(onClick = { showSortMenu = true }) {
+                                        Text(stringResource(sortLabel))
+                                    }
+                                    DropdownMenu(
+                                        expanded = showSortMenu,
+                                        onDismissRequest = { showSortMenu = false },
+                                    ) {
+                                        ListeningPackSort.entries.forEach { choice ->
+                                            val label =
+                                                when (choice) {
+                                                    ListeningPackSort.RECENT -> R.string.listening_recall_sort_recent
+                                                    ListeningPackSort.LEVEL_ASC -> R.string.listening_recall_sort_easy
+                                                    ListeningPackSort.LEVEL_DESC -> R.string.listening_recall_sort_hard
+                                                    ListeningPackSort.TITLE -> R.string.listening_recall_sort_title
+                                                }
+                                            DropdownMenuItem(
+                                                text = { Text(stringResource(label)) },
+                                                onClick = {
+                                                    store.setRecallSort(choice)
+                                                    showSortMenu = false
+                                                },
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        items(orderedPacks, key = { it.id }) { p ->
+                            val statuses = p.lines.map { store.recallProgress(p, it) }
+                            val completed = statuses.count { it.passed }
+                            val errors = statuses.count { it.failed }
+                            OutlinedButton(modifier = Modifier.fillMaxWidth(), onClick = {
+                                store.markPackUsed(p)
+                                currentId = p.id
+                                selectedLine = null
+                                word = null
+                                showText = false
+                                if (recallMode) {
+                                    wrongOnly = false
+                                    recallIndex = store.recallPosition(p)
+                                    ListeningPlayback.start(ctx, p, recallIndex, oneShot = true)
+                                } else if (playback.playing && playback.packId != p.id) {
+                                    ListeningPlayback.stop(ctx)
+                                }
+                            }) {
+                                Column(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                                ) {
+                                    Text((if (p.id == pack?.id) "● " else "") + p.title + " · " + p.level)
+                                    Text(
+                                        stringResource(
+                                            R.string.listening_recall_pack_summary,
+                                            completed,
+                                            p.lines.size,
+                                            errors,
+                                        ),
+                                        style = MaterialTheme.typography.labelSmall,
+                                    )
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(2.dp),
+                                    ) {
+                                        statuses.forEach { item ->
+                                            val color =
+                                                when {
+                                                    item.passed -> MaterialTheme.colorScheme.tertiary
+                                                    item.failed -> MaterialTheme.colorScheme.error
+                                                    else -> MaterialTheme.colorScheme.surfaceVariant
+                                                }
+                                            Box(
+                                                Modifier
+                                                    .weight(1f)
+                                                    .height(6.dp)
+                                                    .clip(RoundedCornerShape(3.dp))
+                                                    .background(color),
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        if (pack != null) {
+                            if (showText) {
+                                items(pack.lines, key = { pack.id + it.id }) { line ->
+                                    Card {
+                                        Column(Modifier.fillMaxWidth().padding(12.dp)) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Text(line.speaker + "：", style = MaterialTheme.typography.labelLarge)
+                                                Spacer(Modifier.weight(1f))
+                                                TextButton(onClick = {
+                                                    ListeningPlayback.start(ctx, pack, pack.lines.indexOf(line))
+                                                }) { Text("从这里播放") }
+                                            }
+                                            ListeningRainbowWords(
+                                                text = line.en,
+                                                active = playback.playing &&
+                                                    playback.packId == pack.id &&
+                                                    playback.currentLine == pack.lines.indexOf(line),
+                                                synced = playback.hasWordTimings &&
+                                                    playback.packId == pack.id &&
+                                                    playback.currentLine == pack.lines.indexOf(line),
+                                                start = playback.spokenStart,
+                                                end = playback.spokenEnd,
+                                                onWordTap = { selected ->
+                                                    if (playback.playing && playback.packId == pack.id) ListeningPlayback.pause(ctx)
+                                                    word = selected
+                                                    selectedLine = line
+                                                },
+                                                onDark = false,
+                                                knownWords = if (studySettings.knownWords) knownWords else emptySet(),
+                                                learningWords = learningWords,
+                                                markNewWords = studySettings.knownWords && studySettings.markNewWords,
+                                            )
+                                            Text(
+                                                line.textZh(),
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            )
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -419,112 +595,6 @@ internal fun ListeningScreen(
                                                 reviewWord = store.reviewCandidates().firstOrNull()
                                                 answerVisible = false
                                             }) { Text(label) }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    if (state.packs.isEmpty()) {
-                        item {
-                            Text(
-                                "暂无对话包。点击右上角 GitHub，输入仅授权 english 仓库的 PAT 后同步。",
-                                style = MaterialTheme.typography.bodyMedium,
-                            )
-                        }
-                    } else {
-                        item { Text("选择听力材料", style = MaterialTheme.typography.titleSmall) }
-                        items(state.packs, key = { it.id }) { p ->
-                            val statuses = p.lines.map { store.recallProgress(p, it) }
-                            val completed = statuses.count { it.passed }
-                            val errors = statuses.count { it.failed }
-                            OutlinedButton(modifier = Modifier.fillMaxWidth(), onClick = {
-                                currentId = p.id
-                                selectedLine = null
-                                word = null
-                                showText = false
-                                if (recallMode) {
-                                    wrongOnly = false
-                                    recallIndex = store.recallPosition(p)
-                                    ListeningPlayback.start(ctx, p, recallIndex, oneShot = true)
-                                } else if (playback.playing && playback.packId != p.id) {
-                                    ListeningPlayback.stop(ctx)
-                                }
-                            }) {
-                                Column(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    verticalArrangement = Arrangement.spacedBy(4.dp),
-                                ) {
-                                    Text((if (p.id == pack?.id) "● " else "") + p.title + " · " + p.level)
-                                    Text(
-                                        stringResource(
-                                            R.string.listening_recall_pack_summary,
-                                            completed,
-                                            p.lines.size,
-                                            errors,
-                                        ),
-                                        style = MaterialTheme.typography.labelSmall,
-                                    )
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.spacedBy(2.dp),
-                                    ) {
-                                        statuses.forEach { item ->
-                                            val color =
-                                                when {
-                                                    item.passed -> MaterialTheme.colorScheme.primary
-                                                    item.failed -> MaterialTheme.colorScheme.error
-                                                    else -> MaterialTheme.colorScheme.surfaceVariant
-                                                }
-                                            Box(
-                                                Modifier
-                                                    .weight(1f)
-                                                    .height(6.dp)
-                                                    .clip(RoundedCornerShape(3.dp))
-                                                    .background(color),
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        if (pack != null) {
-                            if (showText) {
-                                items(pack.lines, key = { pack.id + it.id }) { line ->
-                                    Card {
-                                        Column(Modifier.fillMaxWidth().padding(12.dp)) {
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Text(line.speaker + "：", style = MaterialTheme.typography.labelLarge)
-                                                Spacer(Modifier.weight(1f))
-                                                TextButton(onClick = {
-                                                    ListeningPlayback.start(ctx, pack, pack.lines.indexOf(line))
-                                                }) { Text("从这里播放") }
-                                            }
-                                            ListeningRainbowWords(
-                                                text = line.en,
-                                                active = playback.playing &&
-                                                    playback.packId == pack.id &&
-                                                    playback.currentLine == pack.lines.indexOf(line),
-                                                synced = playback.hasWordTimings &&
-                                                    playback.packId == pack.id &&
-                                                    playback.currentLine == pack.lines.indexOf(line),
-                                                start = playback.spokenStart,
-                                                end = playback.spokenEnd,
-                                                onWordTap = { selected ->
-                                                    if (playback.playing && playback.packId == pack.id) ListeningPlayback.pause(ctx)
-                                                    word = selected
-                                                    selectedLine = line
-                                                },
-                                                onDark = false,
-                                                knownWords = if (studySettings.knownWords) knownWords else emptySet(),
-                                                learningWords = learningWords,
-                                                markNewWords = studySettings.knownWords && studySettings.markNewWords,
-                                            )
-                                            Text(
-                                                line.textZh(),
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            )
                                         }
                                     }
                                 }

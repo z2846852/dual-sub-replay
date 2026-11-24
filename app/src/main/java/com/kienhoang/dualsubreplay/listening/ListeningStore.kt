@@ -330,6 +330,38 @@ internal class ListeningStore(
     /** The synced flag is a device-local outbox field, not part of the remote immutable event. */
     private fun remoteEvent(original: JSONObject): JSONObject = JSONObject(original.toString()).apply { remove("synced") }
 
+    /** Practice preferences live in the listening JSON, not global app settings. */
+    @Synchronized fun recallAutoNext(): Boolean = root.optBoolean("recall_auto_next", false)
+
+    @Synchronized fun setRecallAutoNext(
+        enabled: Boolean,
+    ) {
+        if (recallAutoNext() == enabled) return
+        root.put("recall_auto_next", enabled)
+        changedRecall()
+    }
+
+    @Synchronized fun recallSort(): ListeningPackSort =
+        ListeningPackSort.fromKey(root.optString("recall_sort", ListeningPackSort.RECENT.key))
+
+    @Synchronized fun setRecallSort(sort: ListeningPackSort) {
+        if (recallSort() == sort) return
+        root.put("recall_sort", sort.key)
+        changedRecall()
+    }
+
+    @Synchronized fun recallRecentUsage(): Map<String, Long> {
+        val usage = root.optJSONObject("recall_last_used") ?: return emptyMap()
+        return usage.keys().asSequence().associateWith { usage.optLong(it, 0L) }
+    }
+
+    @Synchronized fun markPackUsed(pack: ListeningPack) {
+        val usage = root.optJSONObject("recall_last_used") ?: JSONObject()
+        usage.put(pack.id, System.currentTimeMillis())
+        root.put("recall_last_used", usage)
+        changedRecall()
+    }
+
     /** Per-line grades survive screen recreation and app updates without changing schema v1. */
     @Synchronized fun recallProgress(
         pack: ListeningPack,

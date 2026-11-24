@@ -40,4 +40,6 @@
     <string name="updates_security_message">Version %1$s fixes a security problem in the version you have (%2$s). Update now? Your saved words and settings stay.</string>
     <string name="updates_reminders_off_hint">While this is off, you won\'t hear about new versions or security updates.</string>
     <string name="updates_security_details">What was fixed</string>
+    <string name="updates_download_details">%1$s / %2$s · %3$s/s</string>
+    <string name="updates_download_unknown_size">Downloaded %1$s · %2$s/s</string>
 </resources>

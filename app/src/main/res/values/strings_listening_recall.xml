@@ -32,4 +32,11 @@
     <string name="listening_recall_all_sentences">All sentences</string>
     <string name="listening_recall_wrong_only">Retry wrong %1$d</string>
     <string name="listening_recall_pack_summary">Passed %1$d/%2$d · To retry %3$d</string>
+    <string name="listening_recall_stories">Stories</string>
+    <string name="listening_recall_sort_recent">Recently used</string>
+    <string name="listening_recall_sort_easy">Easiest first</string>
+    <string name="listening_recall_sort_hard">Hardest first</string>
+    <string name="listening_recall_sort_title">Title</string>
+    <string name="listening_recall_auto_next">Auto next when passed</string>
+    <string name="listening_recall_no_stories">No stories yet. Open Settings to connect GitHub and sync.</string>
 </resources>

@@ -39,4 +39,6 @@
     <string name="updates_security_message">A versão %1$s corrige um problema de segurança na versão que você tem (%2$s). Atualizar agora? Suas palavras salvas e configurações continuam.</string>
     <string name="updates_reminders_off_hint">Enquanto estiver desativado, você não será avisado sobre novas versões nem atualizações de segurança.</string>
     <string name="updates_security_details">O que foi corrigido</string>
+    <string name="updates_download_details">%1$s / %2$s · %3$s/s</string>
+    <string name="updates_download_unknown_size">Baixado %1$s · %2$s/s</string>
 </resources>

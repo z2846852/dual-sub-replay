@@ -7,10 +7,12 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -18,15 +20,19 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -42,6 +48,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.delay
 import com.kienhoang.dualsubreplay.R
 
 /**
@@ -58,6 +65,9 @@ internal fun ListeningRecallCard(
     previousIndex: Int?,
     nextIndex: Int?,
     wrongOnly: Boolean,
+    autoNext: Boolean,
+    onSetAutoNext: (Boolean) -> Unit,
+    onAutoAdvance: () -> Unit,
     onToggleWrongOnly: () -> Unit,
     onPlayLine: (Int) -> Unit,
     onCheck: (String, Boolean) -> Unit,
@@ -82,62 +92,99 @@ internal fun ListeningRecallCard(
     }
     var revealed by remember(pack.id, line.id) { mutableIntStateOf(0) }
     var correctionPending by remember(pack.id, line.id) { mutableStateOf(false) }
+    var advancePending by remember(pack.id, line.id) { mutableStateOf(false) }
     val checkedCurrent = lastChecked != null && lastChecked == answer
     val comparison =
         remember(line.en, lastChecked) {
             lastChecked?.let { ListeningRecallCheck.compare(line.en, it) }
         }
     val canCheck = answer.isNotBlank() && !playing
+    val verifiedPass = progress.passed && checkedCurrent
 
     fun checkAnswer() {
-        if (!canCheck) return
+        if (!canCheck || (progress.passed && checkedCurrent)) return
+        val perfect = ListeningRecallCheck.compare(line.en, answer).perfect
         onCheck(answer, correctionPending)
         lastChecked = answer
         revealed = 0
         correctionPending = false
+        advancePending = perfect
+    }
+
+    // Passing is automatic; incorrect partial dictation never creates an attempt or a hint.
+    LaunchedEffect(answer, playing, line.en) {
+        if (shouldAutoPassRecall(answer, line.en, playing, progress.passed)) {
+            checkAnswer()
+        }
+    }
+    LaunchedEffect(advancePending, autoNext, line.id) {
+        if (advancePending && autoNext) {
+            delay(650)
+            advancePending = false
+            onSaveDraft(answer)
+            onAutoAdvance()
+        }
     }
 
     Card(Modifier.fillMaxWidth()) {
         Column(
-            modifier = Modifier.fillMaxWidth().padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = Modifier.fillMaxWidth().padding(10.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Text("\u266a ${line.speaker}", style = MaterialTheme.typography.titleMedium)
-                Text("${index + 1}/${pack.lines.size}", style = MaterialTheme.typography.labelLarge)
+                Text("\u266a ${line.speaker}", style = MaterialTheme.typography.titleSmall)
+                Text(
+                    when {
+                        playing -> stringResource(R.string.listening_recall_playing)
+                        finished -> stringResource(R.string.listening_recall_waiting)
+                        else -> stringResource(R.string.listening_recall_hidden)
+                    },
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.labelSmall,
+                    maxLines = 1,
+                    modifier = Modifier.weight(1f),
+                )
+                Text("${index + 1}/${pack.lines.size}", style = MaterialTheme.typography.labelMedium)
             }
-            Text(
-                when {
-                    playing -> stringResource(R.string.listening_recall_playing)
-                    finished -> stringResource(R.string.listening_recall_waiting)
-                    else -> stringResource(R.string.listening_recall_hidden)
-                },
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
             if (error != null) {
                 Text(error, color = MaterialTheme.colorScheme.error)
                 TextButton(onClick = onTryLocal) {
                     Text(stringResource(R.string.listening_recall_try_local))
                 }
             }
-            Text(
-                stringResource(R.string.listening_recall_hint),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            if (answer.isEmpty()) {
+                Text(
+                    stringResource(R.string.listening_recall_hint),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
             OutlinedTextField(
                 value = answer,
                 onValueChange = {
                     answer = it
+                    advancePending = false
                     if (lastChecked != it) revealed = 0
                 },
                 modifier = Modifier.fillMaxWidth().testTag("recall_answer"),
                 placeholder = { Text(stringResource(R.string.listening_recall_placeholder)) },
-                minLines = 2,
-                maxLines = 4,
+                minLines = 1,
+                maxLines = 3,
+                colors =
+                    OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor =
+                            if (verifiedPass) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor =
+                            if (verifiedPass) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.outline,
+                        focusedContainerColor =
+                            if (verifiedPass) MaterialTheme.colorScheme.tertiaryContainer else Color.Transparent,
+                        unfocusedContainerColor =
+                            if (verifiedPass) MaterialTheme.colorScheme.tertiaryContainer else Color.Transparent,
+                    ),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                 keyboardActions = KeyboardActions(onDone = { checkAnswer() }),
                 trailingIcon = {
@@ -154,33 +201,45 @@ internal fun ListeningRecallCard(
                     }
                 },
             )
-            Button(
-                enabled = canCheck,
-                onClick = { checkAnswer() },
-                modifier = Modifier.fillMaxWidth().testTag("recall_check"),
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Text(stringResource(R.string.listening_recall_check))
+                Button(
+                    enabled = canCheck,
+                    onClick = { checkAnswer() },
+                    colors =
+                        ButtonDefaults.buttonColors(
+                            containerColor =
+                                if (verifiedPass) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.primary,
+                            contentColor =
+                                if (verifiedPass) MaterialTheme.colorScheme.onTertiary else MaterialTheme.colorScheme.onPrimary,
+                        ),
+                    modifier = Modifier.weight(1f).testTag("recall_check"),
+                ) { Text(stringResource(R.string.listening_recall_check)) }
+                if (progress.attempts > 0) {
+                    Text(
+                        if (progress.passed) {
+                            stringResource(R.string.listening_recall_perfect)
+                        } else {
+                            stringResource(R.string.listening_recall_failed, progress.attempts)
+                        },
+                        color =
+                            if (progress.passed) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.labelMedium,
+                        modifier = Modifier.weight(1.5f).testTag("recall_result"),
+                    )
+                }
             }
-            if (progress.attempts > 0) {
-                Text(
-                    if (progress.passed) {
-                        stringResource(R.string.listening_recall_perfect)
-                    } else {
-                        stringResource(R.string.listening_recall_failed, progress.attempts)
-                    },
-                    color =
-                        if (progress.passed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.titleSmall,
-                    modifier = Modifier.testTag("recall_result"),
-                )
-                if (progress.failed) {
-                    TextButton(onClick = {
+            if (progress.failed) {
+                TextButton(
+                    onClick = {
                         correctionPending = true
                         revealed = 0
-                    }) {
-                        Text(stringResource(R.string.listening_recall_recognition_correction))
-                    }
-                }
+                    },
+                    contentPadding = PaddingValues(horizontal = 2.dp, vertical = 0.dp),
+                ) { Text(stringResource(R.string.listening_recall_recognition_correction)) }
             }
             if (correctionPending) {
                 Text(
@@ -200,7 +259,8 @@ internal fun ListeningRecallCard(
                         onPlayLine(index)
                     },
                     modifier = Modifier.weight(1f).testTag("recall_replay"),
-                ) { Text(stringResource(R.string.listening_recall_replay)) }
+                    contentPadding = PaddingValues(horizontal = 5.dp),
+                ) { Text(stringResource(R.string.listening_recall_replay), maxLines = 1) }
                 OutlinedButton(
                     enabled = progress.mayShowRedOnly() && checkedCurrent && comparison?.perfect == false,
                     onClick = {
@@ -208,14 +268,16 @@ internal fun ListeningRecallCard(
                         onHint(1)
                     },
                     modifier = Modifier.weight(1f).testTag("recall_red_only"),
-                ) { Text(stringResource(R.string.listening_recall_red_only)) }
+                    contentPadding = PaddingValues(horizontal = 5.dp),
+                ) { Text(stringResource(R.string.listening_recall_red_only), maxLines = 1) }
                 OutlinedButton(
                     onClick = {
                         revealed = 2
                         onHint(2)
                     },
                     modifier = Modifier.weight(1f).testTag("recall_reveal"),
-                ) { Text(stringResource(R.string.listening_recall_reveal)) }
+                    contentPadding = PaddingValues(horizontal = 5.dp),
+                ) { Text(stringResource(R.string.listening_recall_reveal), maxLines = 1) }
             }
             if (revealed >= 1 && checkedCurrent && comparison != null && !comparison.perfect) {
                 Text(
@@ -246,10 +308,33 @@ internal fun ListeningRecallCard(
 
             val passes = progressByLine.count { it.passed }
             val failures = progressByLine.count { it.failed }
-            Text(
-                stringResource(R.string.listening_recall_summary, passes, failures, pack.lines.size),
-                style = MaterialTheme.typography.labelLarge,
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Text(
+                    stringResource(R.string.listening_recall_summary, passes, failures, pack.lines.size),
+                    style = MaterialTheme.typography.labelSmall,
+                )
+                TextButton(
+                    onClick = {
+                        onSaveDraft(answer)
+                        onToggleWrongOnly()
+                    },
+                    enabled = wrongOnly || failures > 0,
+                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp),
+                ) {
+                    Text(
+                        if (wrongOnly) {
+                            stringResource(R.string.listening_recall_all_sentences)
+                        } else {
+                            stringResource(R.string.listening_recall_wrong_only, failures)
+                        },
+                        style = MaterialTheme.typography.labelSmall,
+                    )
+                }
+            }
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(2.dp),
                 verticalArrangement = Arrangement.spacedBy(3.dp),
@@ -257,13 +342,13 @@ internal fun ListeningRecallCard(
                 progressByLine.forEachIndexed { i, status ->
                     val bg =
                         when {
-                            status.passed -> MaterialTheme.colorScheme.primary
+                            status.passed -> MaterialTheme.colorScheme.tertiary
                             status.failed -> MaterialTheme.colorScheme.error
                             else -> MaterialTheme.colorScheme.surfaceVariant
                         }
                     val fg =
                         when {
-                            status.passed -> MaterialTheme.colorScheme.onPrimary
+                            status.passed -> MaterialTheme.colorScheme.onTertiary
                             status.failed -> MaterialTheme.colorScheme.onError
                             else -> MaterialTheme.colorScheme.onSurfaceVariant
                         }
@@ -304,20 +389,20 @@ internal fun ListeningRecallCard(
                     }
                 }
             }
-            OutlinedButton(
-                onClick = {
-                    onSaveDraft(answer)
-                    onToggleWrongOnly()
-                },
-                enabled = wrongOnly || failures > 0,
-                modifier = Modifier.fillMaxWidth().testTag("recall_wrong_only"),
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
             ) {
+                Checkbox(
+                    checked = autoNext,
+                    onCheckedChange = onSetAutoNext,
+                    modifier = Modifier.size(36.dp).testTag("recall_auto_next"),
+                )
                 Text(
-                    if (wrongOnly) {
-                        stringResource(R.string.listening_recall_all_sentences)
-                    } else {
-                        stringResource(R.string.listening_recall_wrong_only, failures)
-                    },
+                    stringResource(R.string.listening_recall_auto_next),
+                    style = MaterialTheme.typography.labelMedium,
+                    modifier = Modifier.clickable { onSetAutoNext(!autoNext) },
                 )
             }
             Row(

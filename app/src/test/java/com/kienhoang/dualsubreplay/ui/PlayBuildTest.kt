@@ -3,8 +3,8 @@ package com.kienhoang.dualsubreplay.ui
 import android.view.View
 import com.kienhoang.dualsubreplay.assistant.AiSetting
 import com.kienhoang.dualsubreplay.assistant.aiSettingsInBuild
-import com.kienhoang.dualsubreplay.data.IS_PLAY_BUILD
 import com.kienhoang.dualsubreplay.data.FORK_APPLICATION_ID
+import com.kienhoang.dualsubreplay.data.IS_PLAY_BUILD
 import com.kienhoang.dualsubreplay.data.MAX_REPORTED_ANSWER_CHARS
 import com.kienhoang.dualsubreplay.data.UpdateChannel
 import com.kienhoang.dualsubreplay.data.aiAnswerReportBody

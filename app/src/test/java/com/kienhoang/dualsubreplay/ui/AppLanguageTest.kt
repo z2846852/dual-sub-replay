@@ -79,7 +79,9 @@ class AppLanguageTest {
         assertTrue(english.isNotEmpty())
         for ((tag, folder) in folders) {
             val translated = strings(File(resources, folder))
-            assertTrue("$tag missing=${(english.keys - translated.keys).sorted()} unexpected=${(translated.keys - english.keys).sorted()}", english.keys == translated.keys)
+            val missing = (english.keys - translated.keys).sorted()
+            val unexpected = (translated.keys - english.keys).sorted()
+            assertTrue("$tag missing=$missing unexpected=$unexpected", english.keys == translated.keys)
             for ((name, placeholders) in english) {
                 assertEquals("$tag $name", placeholders, translated.getValue(name))
             }

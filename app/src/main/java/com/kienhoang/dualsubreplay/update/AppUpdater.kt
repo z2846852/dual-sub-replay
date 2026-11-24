@@ -10,6 +10,7 @@ import android.net.ConnectivityManager
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.widget.Toast
 import androidx.annotation.VisibleForTesting
 import androidx.core.content.IntentCompat
@@ -121,6 +122,9 @@ internal sealed interface UpdateState {
     data class Downloading(
         val update: AppUpdate,
         val progress: Float?,
+        val downloadedBytes: Long = 0L,
+        val totalBytes: Long? = null,
+        val bytesPerSecond: Long? = null,
     ) : UpdateState
 
     /** Downloaded and verified, waiting for Install (or for the user to leave the app). */
@@ -669,7 +673,8 @@ internal object AppUpdater {
             apk
         } catch (error: IOException) {
             // Preserve the actual failure reason instead of hiding every mismatch as PATCH_FAILED.
-            val reason = when {
+            val reason =
+                when {
                 error.message?.contains("starts from another APK") == true -> "旧 APK 与差分包基线不一致"
                 error.message?.contains("SHA-256") == true -> "差分包校验失败"
                 error.message?.contains("patched APK") == true -> "差分重建校验失败"
@@ -685,7 +690,10 @@ internal object AppUpdater {
     }
 
     /** Downloader runs on Dispatchers.IO; Android toast UI must be dispatched to the main thread. */
-    private fun showUpdateToast(context: Context, message: String) {
+    private fun showUpdateToast(
+        context: Context,
+        message: String,
+    ) {
         Handler(Looper.getMainLooper()).post {
             Toast.makeText(context.applicationContext, message, Toast.LENGTH_LONG).show()
         }
@@ -701,6 +709,13 @@ internal object AppUpdater {
         var attempt = 0
         while (true) {
             val before = part.length()
+            mutableState.value =
+                UpdateState.Downloading(
+                    update = update,
+                    progress = sizeBytes.takeIf { it > 0 }?.let { (before.toFloat() / it).coerceAtMost(1f) },
+                    downloadedBytes = before,
+                    totalBytes = sizeBytes.takeIf { it > 0 },
+                )
             try {
                 return downloadTo(update, part, url, sizeBytes)
             } catch (error: IOException) {
@@ -778,7 +793,8 @@ internal object AppUpdater {
         total: Long?,
     ) {
         var read = start
-        var lastShown = -1
+        var lastReportedBytes = start
+        var lastReportedMs = SystemClock.elapsedRealtime()
         val buffer = ByteArray(64 * 1024)
         while (true) {
             val count = input.read(buffer)
@@ -787,10 +803,19 @@ internal object AppUpdater {
             if (read > MAX_UPDATE_BYTES) throw UpdateException(UpdateProblem.WRONG_APP, "The download is too big")
             digest.update(buffer, 0, count)
             output.write(buffer, 0, count)
-            val percent = total?.let { (read * 100 / it).toInt() } ?: 0
-            if (percent != lastShown) {
-                lastShown = percent
-                mutableState.value = UpdateState.Downloading(update, total?.let { (read.toFloat() / it).coerceAtMost(1f) })
+            val nowMs = SystemClock.elapsedRealtime()
+            val elapsedMs = nowMs - lastReportedMs
+            if (elapsedMs >= 350L || (total != null && read >= total)) {
+                mutableState.value =
+                    UpdateState.Downloading(
+                        update = update,
+                        progress = total?.let { (read.toFloat() / it).coerceAtMost(1f) },
+                        downloadedBytes = read,
+                        totalBytes = total,
+                        bytesPerSecond = transferBytesPerSecond(read - lastReportedBytes, elapsedMs),
+                    )
+                lastReportedBytes = read
+                lastReportedMs = nowMs
             }
         }
     }
@@ -1019,3 +1044,10 @@ class AppUpdateReceiver : BroadcastReceiver() {
         }
     }
 }
+
+/** Measure the current transfer, excluding any bytes reused from an earlier partial download. */
+internal fun transferBytesPerSecond(
+    deltaBytes: Long,
+    elapsedMs: Long,
+): Long? =
+    if (deltaBytes > 0 && elapsedMs > 0) deltaBytes * 1000L / elapsedMs else null
