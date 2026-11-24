@@ -294,7 +294,7 @@ internal class ListeningStore(
         for (raw in remote.take(15_000)) {
             val id = raw.optString("id")
             if (id.isBlank() || id in ids ||
-                raw.optString("type") !in setOf("recall_checked", "recall_insight")
+                raw.optString("type") !in setOf("recall_checked", "recall_insight", "raw_note")
             ) continue
             list.put(
                 JSONObject(raw.toString())

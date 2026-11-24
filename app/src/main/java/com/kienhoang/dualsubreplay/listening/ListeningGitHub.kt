@@ -235,7 +235,7 @@ internal class ListeningGitHub(
         val day = event.getString("created_at").take(10)
         require(id.matches(Regex("[0-9a-fA-F-]{36}")) &&
             day.matches(Regex("\\d{4}-\\d{2}-\\d{2}"))) { "Raw ID / 日期无效" }
-        val path = "data/raw_inbox/$day/$id.json"
+        val path = ListeningSyncPolicy.rawPath(day, id)
         val original = event.getString("text")
         require(original.isNotBlank() && original.length <= 5000)
         val existing = getFile(token, path)
@@ -266,7 +266,7 @@ internal class ListeningGitHub(
         val day = item.getString("created_at").take(10)
         require(id.matches(Regex("[0-9a-fA-F-]{36}")) &&
             day.matches(Regex("\\d{4}-\\d{2}-\\d{2}")))
-        val path = "data/raw_inbox/$day/$id.json"
+        val path = ListeningSyncPolicy.rawPath(day, id)
         for (attempt in 1..4) {
             val current = getFile(token, path) ?: return
             check(JSONObject(current.first).optString("id") == id) {
@@ -397,6 +397,26 @@ internal class ListeningGitHub(
                                     ) attempts.add(item)
                                 }
                             }
+                        }
+                    }
+                    // Raw uses MyWork's one-UUID-per-file layout, not monthly JSONL.
+                    // Bound downloads to recent days to avoid excessive API calls.
+                    val rawDays = listChildren(token, "data/raw_inbox")
+                        .filter { it.first == "dir" &&
+                            it.second.matches(Regex("\\d{4}-\\d{2}-\\d{2}")) }
+                        .sortedByDescending { it.second }.take(45)
+                    for ((_, day) in rawDays) {
+                        val notes = listChildren(token, "data/raw_inbox/$day")
+                            .filter { it.first == "file" &&
+                                it.second.matches(Regex("[0-9a-fA-F-]{36}\\.json")) }
+                            .take(50)
+                        for ((_, filename) in notes) {
+                            val raw = getFile(token, "data/raw_inbox/$day/$filename")?.first ?: continue
+                            val item = runCatching { JSONObject(raw) }.getOrNull() ?: continue
+                            if (item.optString("type") == "raw_note" &&
+                                item.optString("id") + ".json" == filename &&
+                                attempts.size < 15_000
+                            ) attempts.add(item)
                         }
                     }
                     store.importCloudReviewHistory(attempts)

@@ -14,6 +14,12 @@ internal object ListeningSyncPolicy {
 
     fun validDeviceId(id: String): Boolean = id.matches(Regex("[0-9a-fA-F-]{36}"))
 
+    fun rawPath(date: String, id: String): String {
+        require(date.matches(Regex("\\d{4}-\\d{2}-\\d{2}")))
+        require(id.matches(Regex("[0-9a-fA-F-]{36}")))
+        return "data/raw_inbox/" + date + "/" + id + ".json"
+    }
+
     fun errorKey(eventId: String, expectedWord: String): String =
         eventId + ":" + expectedWord.lowercase(java.util.Locale.ROOT)
 }
