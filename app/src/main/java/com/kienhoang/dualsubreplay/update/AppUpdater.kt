@@ -8,6 +8,7 @@ import android.content.pm.PackageInstaller
 import android.content.pm.PackageManager
 import android.net.ConnectivityManager
 import android.os.Build
+import android.widget.Toast
 import androidx.annotation.VisibleForTesting
 import androidx.core.content.IntentCompat
 import androidx.core.content.pm.PackageInfoCompat
@@ -644,7 +645,11 @@ internal object AppUpdater {
         return try {
             val installed = context.applicationInfo
             // An app installed in parts has no single APK to start from.
-            if (!installed.splitSourceDirs.isNullOrEmpty()) return null
+            if (!installed.splitSourceDirs.isNullOrEmpty()) {
+                ProblemLog.record(ProblemArea.APP_UPDATE, "PATCH_UNAVAILABLE_SPLIT_APK")
+                Toast.makeText(context, "当前安装包不支持差分，改用完整包", Toast.LENGTH_LONG).show()
+                return null
+            }
             if (downloadWithRetries(update, patchFile, patch.downloadUrl, patch.sizeBytes) != patch.sha256) {
                 throw IOException("The patch's SHA-256 does not match")
             }
@@ -655,9 +660,16 @@ internal object AppUpdater {
             val apk = File(folder, UPDATE_APK)
             if (!patched.renameTo(apk)) throw IOException("Could not keep the patched APK")
             apk
-        } catch (_: IOException) {
-            // Kept in the problem log; the whole download follows.
-            ProblemLog.record(ProblemArea.APP_UPDATE, "PATCH_FAILED")
+        } catch (error: IOException) {
+            // Preserve the actual failure reason instead of hiding every mismatch as PATCH_FAILED.
+            val reason = when {
+                error.message?.contains("starts from another APK") == true -> "旧 APK 与差分包基线不一致"
+                error.message?.contains("SHA-256") == true -> "差分包校验失败"
+                error.message?.contains("patched APK") == true -> "差分重建校验失败"
+                else -> "差分失败：${error.javaClass.simpleName}"
+            }
+            ProblemLog.record(ProblemArea.APP_UPDATE, "PATCH_FAILED_${error.javaClass.simpleName}_${error.message.orEmpty().take(80)}")
+            Toast.makeText(context, "$reason，自动改用完整包", Toast.LENGTH_LONG).show()
             null
         } finally {
             patchFile.delete()
