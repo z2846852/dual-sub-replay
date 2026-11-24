@@ -186,11 +186,33 @@ private fun OneTapUpdateProgress(current: UpdateState) {
         UpdateState.Idle, UpdateState.Checking -> Busy(stringResource(R.string.updates_checking), null)
         UpdateState.UpToDate -> UpdateMessage(stringResource(R.string.updates_up_to_date, BuildConfig.VERSION_NAME), false)
         is UpdateState.Available -> Busy(stringResource(R.string.updates_downloading, current.update.versionName), -1f)
-        is UpdateState.Downloading ->
-            Busy(stringResource(R.string.updates_downloading, current.update.versionName), current.progress ?: -1f)
+        is UpdateState.Downloading -> DownloadingProgress(current)
         is UpdateState.Ready, is UpdateState.Installing -> Busy(stringResource(R.string.updates_installing), null)
         is UpdateState.Failed -> UpdateMessage(stringResource(current.problem.messageRes), false)
     }
+}
+
+@Composable
+private fun DownloadingProgress(current: UpdateState.Downloading) {
+    val context = LocalContext.current
+    val total = current.totalBytes ?: current.update.downloadBytes.takeIf { it > 0L }
+    val downloaded = Formatter.formatShortFileSize(context, current.downloadedBytes.coerceAtLeast(0))
+    val speed =
+        current.bytesPerSecond?.takeIf { it > 0L }?.let {
+            Formatter.formatShortFileSize(context, it)
+        } ?: "—"
+    val detail =
+        if (total != null) {
+            stringResource(
+                R.string.updates_download_details,
+                downloaded,
+                Formatter.formatShortFileSize(context, total),
+                speed,
+            )
+        } else {
+            stringResource(R.string.updates_download_unknown_size, downloaded, speed)
+        }
+    Busy(stringResource(R.string.updates_downloading, current.update.versionName), current.progress ?: -1f, detail)
 }
 
 @Composable
@@ -217,8 +239,7 @@ private fun UpdateDialogText(
                     sizeLine(context, current.update.downloadBytes) + "\n\n" + stringResource(R.string.updates_first_time_note),
                 noBrowser,
             )
-        is UpdateState.Downloading ->
-            Busy(stringResource(R.string.updates_downloading, current.update.versionName), current.progress ?: -1f)
+        is UpdateState.Downloading -> DownloadingProgress(current)
         is UpdateState.Ready -> UpdateMessage(stringResource(R.string.updates_ready, current.update.versionName), noBrowser)
         is UpdateState.Installing -> Busy(stringResource(R.string.updates_installing), null)
         is UpdateState.Failed -> UpdateMessage(stringResource(current.problem.messageRes), noBrowser)
@@ -289,9 +310,13 @@ private fun UpdateMessage(
 private fun Busy(
     text: String,
     progress: Float?,
+    detail: String? = null,
 ) {
     Column {
         Text(text, modifier = Modifier.testTag("update_message"))
+        if (detail != null) {
+            Text(detail, style = MaterialTheme.typography.bodySmall, modifier = Modifier.testTag("update_transfer_stats"))
+        }
         Spacer(Modifier.size(12.dp))
         when {
             progress == null -> CircularProgressIndicator(Modifier.size(28.dp))
