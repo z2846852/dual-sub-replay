@@ -23,7 +23,7 @@
     <string name="listening_recall_failed">Keçilmədi · %1$d-ci cəhd</string>
     <string name="listening_recall_recognition_correction">Səs tanıma səhvi? Düzəlt və yenidən yoxla</string>
     <string name="listening_recall_correction_pending">Bu düzəliş yeni cəhd sayılmayacaq</string>
-    <string name="listening_recall_red_only">Yalnız qırmızı</string>
+    <string name="listening_recall_show_meaning">Çincə mənanı göstər</string>
     <string name="listening_recall_reveal">Cavabı göstər</string>
     <string name="listening_recall_summary">Keçildi %1$d · Səhv %2$d · Cəmi %3$d</string>
     <string name="listening_recall_status_passed">Keçildi</string>
