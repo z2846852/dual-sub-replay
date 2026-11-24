@@ -110,6 +110,7 @@ internal fun ListeningScreen(
     var showText by remember { mutableStateOf(false) }
     var showSortMenu by remember { mutableStateOf(false) }
     var showUploadReview by remember { mutableStateOf(false) }
+    var focusedReviewLine by remember { mutableStateOf<String?>(null) }
     var recallMode by remember { mutableStateOf(false) }
     var recallIndex by remember(pack?.id) { mutableStateOf(pack?.let(store::recallPosition) ?: 0) }
     var wrongOnly by remember(pack?.id) { mutableStateOf(false) }
@@ -261,6 +262,17 @@ internal fun ListeningScreen(
                                             category,
                                             note,
                                         )
+                                    },
+                                    onOpenReview = {
+                                        focusedReviewLine = pack.id + "/" + pack.lines[recallIndex].id
+                                        showUploadReview = true
+                                        if (connected && !busy) {
+                                            busy = true
+                                            scope.launch {
+                                                try { message = github.refreshCloudReviewHistory() }
+                                                finally { busy = false }
+                                            }
+                                        }
                                     },
                                     onTryLocal = { ListeningPlayback.tryLocal(ctx) },
                                     onWordTap = { selected, line ->
@@ -534,7 +546,13 @@ internal fun ListeningScreen(
                     item {
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             Button(enabled = !busy && connected, onClick = {
+                                focusedReviewLine = null
                                 showUploadReview = true
+                                busy = true
+                                scope.launch {
+                                    try { message = github.refreshCloudReviewHistory() }
+                                    finally { busy = false }
+                                }
                             }) { Text("审核并同步 GitHub") }
                             if (busy) CircularProgressIndicator()
                         }
@@ -610,25 +628,49 @@ internal fun ListeningScreen(
         }
     }
     if (showUploadReview) {
+        val history = store.reviewableEvents()
         ListeningUploadReviewDialog(
-            pending = store.pendingEvents().sortedByDescending { it.optString("created_at") },
-            excluded = store.excludedEvents().sortedByDescending { it.optString("created_at") },
+            records = history,
+            packs = state.packs,
+            focusedLineKey = focusedReviewLine,
+            bookmarked = store.bookmarkedErrorKeys(),
+            pendingUploadCount = store.pendingEvents().size,
+            pendingDeleteCount = store.pendingDeletions().size,
             busy = busy,
-            onExclude = { store.setUploadExcluded(it, true) },
-            onRestore = { store.setUploadExcluded(it, false) },
-            onConfirm = {
-                val approvedIds = store.pendingEvents().map { it.getString("id") }.toSet()
-                busy = true
-                scope.launch {
-                    try {
-                        message = github.syncNow(approvedEventIds = approvedIds)
-                    } finally {
-                        busy = false
-                        showUploadReview = false
+            onBookmark = store::toggleBookmarkedError,
+            onTypo = store::toggleTypoLabel,
+            onDelete = store::deleteReviewRecord,
+            onUndoDelete = store::undoDeleteRecord,
+            onRefreshCloud = {
+                if (!busy && connected) {
+                    busy = true
+                    scope.launch {
+                        try { message = github.refreshCloudReviewHistory() }
+                        finally { busy = false }
                     }
                 }
             },
-            onDismiss = { if (!busy) showUploadReview = false },
+            onConfirmSync = {
+                val approvedIds = store.pendingEvents().map { it.getString("id") }.toSet()
+                val approvedDeletions = store.pendingDeletions().map { it.getString("id") }.toSet()
+                busy = true
+                scope.launch {
+                    try {
+                        message = github.syncNow(
+                            approvedEventIds = approvedIds,
+                            approvedDeletionIds = approvedDeletions,
+                        )
+                    } finally {
+                        busy = false
+                    }
+                }
+            },
+            onDismiss = {
+                if (!busy) {
+                    showUploadReview = false
+                    focusedReviewLine = null
+                }
+            },
         )
     }
 

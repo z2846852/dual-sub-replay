@@ -76,6 +76,7 @@ internal fun ListeningRecallCard(
     onHint: (Int) -> Unit,
     onSaveDraft: (String) -> Unit,
     onSaveInsight: (String, String, String) -> Unit,
+    onOpenReview: () -> Unit,
     onTryLocal: () -> Unit,
     onWordTap: (String, ListeningLine) -> Unit,
 ) {
@@ -156,6 +157,10 @@ internal fun ListeningRecallCard(
                     modifier = Modifier.weight(1f),
                 )
                 Text("${index + 1}/${pack.lines.size}", style = MaterialTheme.typography.labelMedium)
+                TextButton(
+                    onClick = onOpenReview,
+                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp),
+                ) { Text("ⓘ", style = MaterialTheme.typography.titleMedium) }
             }
             if (error != null) {
                 Text(error, color = MaterialTheme.colorScheme.error)
