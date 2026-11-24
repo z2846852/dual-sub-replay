@@ -39,4 +39,6 @@
     <string name="updates_security_message">Phiên bản %1$s sửa một lỗi bảo mật trong phiên bản bạn đang dùng (%2$s). Cập nhật ngay? Từ đã lưu và cài đặt của bạn vẫn được giữ.</string>
     <string name="updates_reminders_off_hint">Khi tắt, bạn sẽ không được báo về phiên bản mới hay bản cập nhật bảo mật.</string>
     <string name="updates_security_details">Đã sửa những gì</string>
+    <string name="updates_download_details">%1$s / %2$s · %3$s/giây</string>
+    <string name="updates_download_unknown_size">Đã tải %1$s · %2$s/giây</string>
 </resources>

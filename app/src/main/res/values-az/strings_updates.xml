@@ -39,4 +39,6 @@
     <string name="updates_security_message">Versiya %1$s sizdəki versiyada (%2$s) olan təhlükəsizlik problemini düzəldir. İndi yeniləyək? Saxlanmış sözləriniz və ayarlarınız qalır.</string>
     <string name="updates_reminders_off_hint">Bu söndürülü olduqca yeni versiyalar və təhlükəsizlik yeniləmələri barədə xəbər almayacaqsınız.</string>
     <string name="updates_security_details">Nə düzəldildi</string>
+    <string name="updates_download_details">%1$s / %2$s · %3$s/s</string>
+    <string name="updates_download_unknown_size">Endirildi %1$s · %2$s/s</string>
 </resources>

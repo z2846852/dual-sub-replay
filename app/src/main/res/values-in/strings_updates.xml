@@ -39,4 +39,6 @@
     <string name="updates_security_message">Versi %1$s memperbaiki masalah keamanan pada versi yang Anda miliki (%2$s). Perbarui sekarang? Kata tersimpan dan setelan Anda tetap ada.</string>
     <string name="updates_reminders_off_hint">Selama nonaktif, Anda tidak akan diberi tahu tentang versi baru atau pembaruan keamanan.</string>
     <string name="updates_security_details">Apa yang diperbaiki</string>
+    <string name="updates_download_details">%1$s / %2$s · %3$s/dtk</string>
+    <string name="updates_download_unknown_size">Diunduh %1$s · %2$s/dtk</string>
 </resources>

@@ -39,4 +39,6 @@
     <string name="updates_security_message">버전 %1$s은(는) 사용 중인 버전(%2$s)의 보안 문제를 해결합니다. 지금 업데이트할까요? 저장한 단어와 설정은 그대로 유지됩니다.</string>
     <string name="updates_reminders_off_hint">꺼져 있는 동안에는 새 버전이나 보안 업데이트 알림을 받지 않습니다.</string>
     <string name="updates_security_details">수정된 내용 보기</string>
+    <string name="updates_download_details">%1$s / %2$s · %3$s/초</string>
+    <string name="updates_download_unknown_size">다운로드 %1$s · %2$s/초</string>
 </resources>
