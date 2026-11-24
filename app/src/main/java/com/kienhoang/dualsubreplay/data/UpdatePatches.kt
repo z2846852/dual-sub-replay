@@ -24,6 +24,7 @@ internal data class UpdatePatch(
     /** Lowercase hex of the patch file itself. */
     val sha256: String,
     val sizeBytes: Long,
+    val fromSha256: String? = null,
 )
 
 /** One `patches` entry of `update-info.json`: the patch from the release with [fromVersionCode]. */
@@ -32,6 +33,7 @@ internal data class UpdateInfoPatch(
     val name: String,
     val sha256: String,
     val sizeBytes: Long,
+    val fromSha256: String? = null,
 )
 
 private val PATCH_NAME = Regex("""^update-from-v\d{1,4}\.\d{1,4}\.\d{1,4}\.patch$""")
@@ -46,6 +48,7 @@ internal fun parseUpdateInfoPatches(patches: JSONArray?): List<UpdateInfoPatch> 
             name = entry.optString("name").takeIf(PATCH_NAME::matches) ?: return@mapNotNull null,
             sha256 = entry.optString("sha256").lowercase().takeIf(HEX_SHA256::matches) ?: return@mapNotNull null,
             sizeBytes = entry.optLong("size").takeIf { it in 1..MAX_UPDATE_BYTES } ?: return@mapNotNull null,
+            fromSha256 = entry.optString("from_sha256").lowercase().takeIf(HEX_SHA256::matches),
         )
     }
 
@@ -56,7 +59,7 @@ internal fun officialPatchFor(
     installedVersionCode: Long,
 ): UpdatePatch? =
     patches.firstOrNull { it.fromVersionCode == installedVersionCode }?.let {
-        UpdatePatch("$UPDATE_RELEASES_PAGE_URL/download/v$versionName/${it.name}", it.sha256, it.sizeBytes)
+        UpdatePatch("$UPDATE_RELEASES_PAGE_URL/download/v$versionName/${it.name}", it.sha256, it.sizeBytes, it.fromSha256)
     }
 
 private val PREVIEW_PATCH = Regex("""^DualSub-Replay-PR(\d+)-build(\d+)-from-build(\d+)\.patch$""")
