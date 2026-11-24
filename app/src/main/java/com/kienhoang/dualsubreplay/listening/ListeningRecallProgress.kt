@@ -45,5 +45,6 @@ internal data class RecallLineProgress(
 
     fun hint(level: Int): RecallLineProgress = copy(hintLevel = maxOf(hintLevel, level.coerceIn(0, 2)))
 
-    fun mayShowRedOnly(): Boolean = attempts >= 1 && failed
+    /** Chinese translation is an optional hint after a checked mistake, not part of automatic red feedback. */
+    fun mayShowMeaning(): Boolean = attempts >= 1 && failed
 }
