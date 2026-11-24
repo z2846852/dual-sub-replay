@@ -160,6 +160,7 @@ internal class ListeningStore(
             .map { list.getJSONObject(it) }
             .filter { ListeningSyncPolicy.mayUpload(it.optBoolean("synced"), it.optBoolean("upload_excluded")) }
             .map(::remoteEvent)
+    }
 
     /** Entries excluded in the preview remain on-device and can be restored before upload. */
     @Synchronized fun excludedEvents(): List<JSONObject> {
@@ -218,7 +219,6 @@ internal class ListeningStore(
                 .put("user_selected", true),
         )
         persist()
-    }
     }
 
     @Synchronized fun markUploaded(ids: Set<String>) {
