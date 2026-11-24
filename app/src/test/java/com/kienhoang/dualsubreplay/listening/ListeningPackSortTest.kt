@@ -4,7 +4,11 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class ListeningPackSortTest {
-    private fun pack(id: String, level: String, title: String = id) =
+    private fun pack(
+        id: String,
+        level: String,
+        title: String = id,
+    ) =
         ListeningPack(id, title, level, listOf(ListeningLine("1", "A", "Hello", "")))
 
     @Test
@@ -30,6 +34,7 @@ class ListeningPackSortTest {
         assertEquals(ListeningPackSort.RECENT, ListeningPackSort.fromKey("garbage"))
         assertEquals(ListeningPackSort.LEVEL_ASC, ListeningPackSort.fromKey("level_asc"))
     }
+
     @Test
     fun autoPassRequiresExactWordsAndNotAlreadyPassed() {
         assertEquals(true, shouldAutoPassRecall(" EXCUSE me!", "Excuse me", playing = false, alreadyPassed = false))
@@ -45,5 +50,4 @@ class ListeningPackSortTest {
         assertEquals(null, nextAutomaticRecallIndex(8, 13, wrongOnly = true, remainingWrong = listOf(1, 6)))
         assertEquals(null, nextAutomaticRecallIndex(13, 13, wrongOnly = false, remainingWrong = emptyList()))
     }
-
 }

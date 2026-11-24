@@ -9,8 +9,8 @@ import android.content.pm.PackageManager
 import android.net.ConnectivityManager
 import android.os.Build
 import android.os.Handler
-import android.os.SystemClock
 import android.os.Looper
+import android.os.SystemClock
 import android.widget.Toast
 import androidx.annotation.VisibleForTesting
 import androidx.core.content.IntentCompat
@@ -673,7 +673,8 @@ internal object AppUpdater {
             apk
         } catch (error: IOException) {
             // Preserve the actual failure reason instead of hiding every mismatch as PATCH_FAILED.
-            val reason = when {
+            val reason =
+                when {
                 error.message?.contains("starts from another APK") == true -> "旧 APK 与差分包基线不一致"
                 error.message?.contains("SHA-256") == true -> "差分包校验失败"
                 error.message?.contains("patched APK") == true -> "差分重建校验失败"
@@ -689,7 +690,10 @@ internal object AppUpdater {
     }
 
     /** Downloader runs on Dispatchers.IO; Android toast UI must be dispatched to the main thread. */
-    private fun showUpdateToast(context: Context, message: String) {
+    private fun showUpdateToast(
+        context: Context,
+        message: String,
+    ) {
         Handler(Looper.getMainLooper()).post {
             Toast.makeText(context.applicationContext, message, Toast.LENGTH_LONG).show()
         }
@@ -1042,5 +1046,8 @@ class AppUpdateReceiver : BroadcastReceiver() {
 }
 
 /** Measure the current transfer, excluding any bytes reused from an earlier partial download. */
-internal fun transferBytesPerSecond(deltaBytes: Long, elapsedMs: Long): Long? =
+internal fun transferBytesPerSecond(
+    deltaBytes: Long,
+    elapsedMs: Long,
+): Long? =
     if (deltaBytes > 0 && elapsedMs > 0) deltaBytes * 1000L / elapsedMs else null

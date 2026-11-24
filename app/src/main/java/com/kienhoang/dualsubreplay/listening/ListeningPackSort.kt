@@ -1,6 +1,8 @@
 package com.kienhoang.dualsubreplay.listening
 
-internal enum class ListeningPackSort(val key: String) {
+internal enum class ListeningPackSort(
+    val key: String,
+) {
     RECENT("recent"),
     LEVEL_ASC("level_asc"),
     LEVEL_DESC("level_desc"),

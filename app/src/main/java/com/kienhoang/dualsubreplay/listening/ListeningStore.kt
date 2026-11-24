@@ -330,11 +330,12 @@ internal class ListeningStore(
     /** The synced flag is a device-local outbox field, not part of the remote immutable event. */
     private fun remoteEvent(original: JSONObject): JSONObject = JSONObject(original.toString()).apply { remove("synced") }
 
-
     /** Practice preferences live in the listening JSON, not global app settings. */
     @Synchronized fun recallAutoNext(): Boolean = root.optBoolean("recall_auto_next", false)
 
-    @Synchronized fun setRecallAutoNext(enabled: Boolean) {
+    @Synchronized fun setRecallAutoNext(
+        enabled: Boolean,
+    ) {
         if (recallAutoNext() == enabled) return
         root.put("recall_auto_next", enabled)
         changedRecall()
