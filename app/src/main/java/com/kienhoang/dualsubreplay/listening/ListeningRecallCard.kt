@@ -80,6 +80,7 @@ internal fun ListeningRecallCard(
     onSaveDraft: (String) -> Unit,
     onSaveInsight: (String, String, String) -> Unit,
     onOpenReview: () -> Unit,
+    onOpenRaw: (String, String) -> Unit,
     onTryLocal: () -> Unit,
     onWordTap: (String, ListeningLine) -> Unit,
 ) {
@@ -366,6 +367,38 @@ internal fun ListeningRecallCard(
                 )
             }
 
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                TextButton(
+                    onClick = { onOpenRaw(line.id, "What would you say after: " + line.en) },
+                    modifier = Modifier.weight(1f),
+                ) { Text("✎ 追加我的话", style = MaterialTheme.typography.labelMedium) }
+                if (index == pack.lines.lastIndex) {
+                    TextButton(
+                        onClick = {
+                            onOpenRaw(
+                                "",
+                                pack.followUpEn.ifBlank {
+                                    "What would you say next in this conversation? Explain in English."
+                                },
+                            )
+                        },
+                        modifier = Modifier.weight(1f),
+                    ) { Text("💬 回答对话问题", style = MaterialTheme.typography.labelMedium) }
+                }
+            }
+            if (index == pack.lines.lastIndex) {
+                Text(
+                    "对话思考题：" + pack.followUpEn.ifBlank {
+                        "What would you say next in this conversation? Explain in English."
+                    },
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
             val passes = progressByLine.count { it.passed }
             val failures = progressByLine.count { it.failed }
             Row(

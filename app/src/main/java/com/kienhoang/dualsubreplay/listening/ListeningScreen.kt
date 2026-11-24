@@ -121,6 +121,8 @@ internal fun ListeningScreen(
     var reviewMode by remember { mutableStateOf(false) }
     var reviewWord by remember { mutableStateOf<String?>(null) }
     var answerVisible by remember { mutableStateOf(false) }
+    var rawEditor by remember { mutableStateOf<ListeningReflectionRequest?>(null) }
+    var delayedReviewOpen by remember { mutableStateOf(false) }
 
     // Opening via the top shortcut starts the saved sentence directly. The side-menu item
     // retains its current continuous-listening entry point. Never auto-restart after paging.
@@ -198,6 +200,57 @@ internal fun ListeningScreen(
                         }
                     }
                     if (pack != null) {
+                        item {
+                            val metrics = store.learningMetrics()
+                            val dueCount = store.dueRetests().size
+                            val rate = metrics.firstPassRate?.let { it.toString() + "%" } ?: "数据不足"
+                            val retention = metrics.delayedRate?.let { it.toString() + "%" } ?: "待复查"
+                            val suggested = metrics.nextLevel(pack.level)
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text(
+                                    "真实学习：首次独立正确 $rate · 延迟保持 $retention · Raw " +
+                                        metrics.freeExpressions,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                ) {
+                                    if (dueCount > 0) {
+                                        Button(onClick = { delayedReviewOpen = true }) {
+                                            Text("隔天复查 $dueCount 句")
+                                        }
+                                    }
+                                    Text(
+                                        if (metrics.firstIndependentChecks >= 5) {
+                                            "建议难度 $suggested · 基于首次正确率"
+                                        } else {
+                                            "还需 " + (5 - metrics.firstIndependentChecks).coerceAtLeast(0) +
+                                                " 次独立答题评估难度"
+                                        },
+                                        style = MaterialTheme.typography.labelSmall,
+                                        modifier = Modifier.weight(1f),
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                    if (metrics.firstIndependentChecks >= 5) {
+                                        val suggestedPack = orderedPacks.firstOrNull {
+                                            it.level.equals(suggested, ignoreCase = true)
+                                        }
+                                        if (suggestedPack != null && suggestedPack.id != pack.id) {
+                                            TextButton(onClick = {
+                                                currentId = suggestedPack.id
+                                                recallMode = true
+                                                recallIndex = store.recallPosition(suggestedPack)
+                                                store.markPackUsed(suggestedPack)
+                                                ListeningPlayback.start(ctx, suggestedPack, recallIndex, oneShot = true)
+                                            }) { Text("练推荐") }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                         item {
                             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                 FilterChip(
@@ -307,6 +360,9 @@ internal fun ListeningScreen(
                                             category,
                                             note,
                                         )
+                                    },
+                                    onOpenRaw = { lineId, prompt ->
+                                        rawEditor = ListeningReflectionRequest(pack, lineId, prompt)
                                     },
                                     onOpenReview = {
                                         focusedReviewLine = pack.id + "/" + pack.lines[recallIndex].id
@@ -700,6 +756,33 @@ internal fun ListeningScreen(
                 }
             }
         }
+    }
+    val openRaw = rawEditor
+    if (openRaw != null) {
+        ListeningRawReflectionDialog(
+            request = openRaw,
+            onSave = { request, text ->
+                if (store.addRawReflection(request.pack, request.lineId, request.prompt, text)) {
+                    message = "Raw 已保存在手机；点击审核同步后才会上传 GitHub"
+                }
+                rawEditor = null
+            },
+            onDismiss = { rawEditor = null },
+        )
+    }
+    if (delayedReviewOpen) {
+        ListeningDelayedReviewDialog(
+            due = store.dueRetests(),
+            onPlay = { item ->
+                ListeningPlayback.start(ctx, item.pack, item.lineIndex, oneShot = true)
+            },
+            onCheck = { item, answer ->
+                val passed = store.checkDelayedRecall(item.pack, item.pack.lines[item.lineIndex], answer)
+                message = if (passed) "延迟回忆正确" else "延迟回忆未通过；已安排复查"
+                passed
+            },
+            onClose = { delayedReviewOpen = false },
+        )
     }
     if (showUploadReview) {
         val history = store.reviewableEvents()
