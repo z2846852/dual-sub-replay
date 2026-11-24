@@ -160,6 +160,41 @@ internal class ListeningGitHub(
             }
         }
 
+    /**
+     * Read-only, user-triggered course refresh. This must remain independent of word-memory
+     * backups and reviewed event uploads: a failed write must never block lesson downloads.
+     */
+    suspend fun refreshContentNow(): String =
+        mutex.withLock {
+            withContext(Dispatchers.IO) {
+                try {
+                    val token = vault.read()
+                    if (token == null) {
+                        val message = "未配置 PAT，请在设置中连接 GitHub"
+                        _status.value = message
+                        return@withContext message
+                    }
+                    _status.value = "正在从 English/main 获取课程…"
+                    verify(token)
+                    val existingIds = store.state.value.packs.mapTo(HashSet()) { it.id }
+                    val packs = pullPacks(token)
+                    require(packs.isNotEmpty()) { "云端课程清单为空，保留原有本地内容" }
+                    store.putPacks(packs)
+                    ListeningVoicePrefetch.schedule(application, store.state.value.packs)
+                    val newlyAdded = packs.count { it.id !in existingIds }
+                    val total = store.state.value.packs.size
+                    val message = "同步完成：云端 " + packs.size +
+                        " 个课程，新增 " + newlyAdded + " 个，本地共 " + total + " 个"
+                    _status.value = message
+                    message
+                } catch (error: Exception) {
+                    val message = "同步失败：" + safeError(error) + "。原有本地课程不受影响"
+                    _status.value = message
+                    message
+                }
+            }
+        }
+
     suspend fun autoSyncOnceDaily() {
         if (!vault.isConfigured()) return
         val today = LocalDate.now(ZoneId.of("Asia/Shanghai")).toString()
