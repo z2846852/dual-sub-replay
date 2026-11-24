@@ -118,15 +118,15 @@ internal class ListeningGitHub(
         _status.value = "PAT 已清除，本地单词和对话仍保留"
     }
 
-    suspend fun syncNow(uploadEvents: Boolean = false): String =
+    suspend fun syncNow(approvedEventIds: Set<String> = emptySet()): String =
         mutex.withLock {
             withContext(Dispatchers.IO) {
                 try {
                     val token = vault.read() ?: return@withContext "未配置 PAT，请先连接 GitHub".also { _status.value = it }
-                    _status.value = if (uploadEvents) "正在上传已审核的学习记录…" else "正在获取学习内容…"
+                    _status.value = if (approvedEventIds.isNotEmpty()) "正在上传已审核的学习记录…" else "正在获取学习内容…"
                     verify(token)
-                    val sent = if (uploadEvents) pushPending(token) else 0
-                    _status.value = if (uploadEvents) {
+                    val sent = if (approvedEventIds.isNotEmpty()) pushPending(token, approvedEventIds) else 0
+                    _status.value = if (approvedEventIds.isNotEmpty()) {
                         "已上传 " + sent + " 条学习事件，正在备份词汇记忆…"
                     } else {
                         "自动同步不上传未经审核的逐句记录，正在备份词汇记忆…"
@@ -157,7 +157,7 @@ internal class ListeningGitHub(
             if (preferences.getString("last_auto_attempt_day", null) == today) return
             preferences.edit().putString("last_auto_attempt_day", today).commit()
         }
-        syncNow(uploadEvents = false)
+        syncNow()
     }
 
     private fun verify(token: String) {
@@ -165,8 +165,8 @@ internal class ListeningGitHub(
         check(repo.optString("full_name").equals("z2846852/english", ignoreCase = true)) { "PAT 指向非预期仓库" }
     }
 
-    private fun pushPending(token: String): Int {
-        val pending = store.pendingEvents()
+    private fun pushPending(token: String, approvedEventIds: Set<String>): Int {
+        val pending = store.pendingEvents().filter { it.getString("id") in approvedEventIds }
         val grouped =
             pending.groupBy { e ->
                 val month = e.getString("created_at").substring(0, 7)

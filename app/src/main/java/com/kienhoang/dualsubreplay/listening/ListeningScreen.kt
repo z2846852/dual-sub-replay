@@ -611,16 +611,17 @@ internal fun ListeningScreen(
     }
     if (showUploadReview) {
         ListeningUploadReviewDialog(
-            pending = store.pendingEvents(),
-            excluded = store.excludedEvents(),
+            pending = store.pendingEvents().sortedByDescending { it.optString("created_at") },
+            excluded = store.excludedEvents().sortedByDescending { it.optString("created_at") },
             busy = busy,
             onExclude = { store.setUploadExcluded(it, true) },
             onRestore = { store.setUploadExcluded(it, false) },
             onConfirm = {
+                val approvedIds = store.pendingEvents().map { it.getString("id") }.toSet()
                 busy = true
                 scope.launch {
                     try {
-                        message = github.syncNow(uploadEvents = true)
+                        message = github.syncNow(approvedEventIds = approvedIds)
                     } finally {
                         busy = false
                         showUploadReview = false
