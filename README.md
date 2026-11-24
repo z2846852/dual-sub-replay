@@ -45,6 +45,8 @@
 
 | 模块 | 默认与主要交互 |
 | --- | --- |
+| 顶部快捷入口 | YouTube 主页面顶部常驻「听力练习」「快速翻译」，点击即进入原本的离线逐句复述或中英互译页面，**不必打开左侧菜单**。菜单入口仍保留；听力快捷键直接恢复上次练习句并播放 |
+| 练习页布局 | 顶部使用五项紧凑数字（故事、待传、词汇、待复习、待巩固）；成功同步的长日志不占据常驻空间，异常仍显示。练习面板将纠错/收藏合并、自动下一句与翻页合并在底部；故事按所选排序，以进度条和完成量概览 |
 | 离线听力发音 | **优先 Google 自然语音 MP3 与本地缓存**；缓存后可离线播放。Google 不可用时提示，用户可以**主动选择本机 TTS**，不应静默换发音 |
 | 逐句复述 | 用系统输入法文字或语音转写复述；允许长按选词替换、右侧 × 清空；**完全匹配即自动判绿**，无需点核对；未匹配不会自动计错 |
 | 错误提示 | 主动核对首次错误只提示未通过；第二次错误后可选择「仅标红」，答案始终需要主动揭晓；保留错句重练与逐句进度 |
@@ -59,7 +61,7 @@
 | 每日自动同步 | 自动获取故事和备份词汇，不上传未经审核的逐句记录。删除已上传记录在用户确认时直接执行；失败则可手动同步重试 |
 | App 更新 | 一键检查→按条件下载差分或完整 APK→校验→交给系统安装；显示已下载量、总大小和实时速度。系统要求的安装授权不能省略 |
 
-主要实现位置：[逐句界面](app/src/main/java/com/kienhoang/dualsubreplay/listening/ListeningRecallCard.kt) · [学习主页面](app/src/main/java/com/kienhoang/dualsubreplay/listening/ListeningScreen.kt) · [文字核对](app/src/main/java/com/kienhoang/dualsubreplay/listening/ListeningRecallCheck.kt) · [学习数据](app/src/main/java/com/kienhoang/dualsubreplay/listening/ListeningStore.kt) · [升级逻辑](app/src/main/java/com/kienhoang/dualsubreplay/update/AppUpdater.kt)。
+主要实现位置：[主页面顶部快捷键](app/src/main/java/com/kienhoang/dualsubreplay/ui/DualSubApp.kt) · [逐句界面](app/src/main/java/com/kienhoang/dualsubreplay/listening/ListeningRecallCard.kt) · [学习主页面](app/src/main/java/com/kienhoang/dualsubreplay/listening/ListeningScreen.kt) · [文字核对](app/src/main/java/com/kienhoang/dualsubreplay/listening/ListeningRecallCheck.kt) · [学习数据](app/src/main/java/com/kienhoang/dualsubreplay/listening/ListeningStore.kt) · [升级逻辑](app/src/main/java/com/kienhoang/dualsubreplay/update/AppUpdater.kt)。
 
 **验证边界：**上述内容是当前 `main` 中有实现的行为，不保证所有输入法、网络和手机机型已完成真机测试；当前最新可安装版本及构建状态请以 [Releases](https://github.com/z2846852/dual-sub-replay/releases/latest) 和 [Actions](https://github.com/z2846852/dual-sub-replay/actions/workflows/personal-fast-apk.yml) 为准，避免把 README 的描述当作现场构建结果。
 
@@ -139,7 +141,7 @@
 1. 首次打开「离线英语听力」，配置一次 GitHub fine-grained PAT。
 2. 点击同步，获取私人 `english` 仓库中的对话包。
 3. 选择话题，例如曼谷出行、编程排错、游戏聊天等。
-4. 选择「连续播放」或「逐句复述」；默认优先使用 Google 自然发音及 MP3 缓存。必要时可主动改用本机 TTS。
+4. 可以直接点击 YouTube 顶部的「听力练习」进入上次的逐句复述并播放；也可以通过左侧菜单进入「离线英语听力」后选择「连续播放」或「逐句复述」。默认优先使用 Google 自然发音与 MP3 缓存，必要时可主动改用本机 TTS。
 5. 平时隐藏英文原文，只需要听；听不清时再显示文字。
 6. 点击英文单词收藏到本机生词簿；保存单词、原句和来源 ID。
 7. 在逐句复述中用键盘或系统语音输入答案：完全匹配自动变绿（允许常见缩写），失败需主动点核对；也可进入独立听辨复习，选择四档自评。
