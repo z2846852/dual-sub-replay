@@ -445,8 +445,8 @@ internal class ListeningStore(
         prompt: String,
         text: String,
     ): Boolean {
-        val original = text.trim()
-        if (original.isEmpty()) return false
+        if (text.isBlank()) return false
+        val original = text.take(5000)
         val events = root.optJSONArray("events") ?: JSONArray().also { root.put("events", it) }
         val note = event("raw_note", "", pack.id, lineId)
             .put("text", original.take(5000))
@@ -510,7 +510,46 @@ internal class ListeningStore(
         )
     }
 
+    /**
+     * On upgrade, schedule existing successfully completed sentences too.
+     * The date comes from the earliest recorded pass, not the app-upgrade date.
+     * No synthetic learning event or retrospective score is created.
+     */
+    private fun bootstrapExistingRetests() {
+        val all = root.optJSONObject("recall_retests") ?: JSONObject().also {
+            root.put("recall_retests", it)
+        }
+        val events = root.optJSONArray("events") ?: JSONArray()
+        val today = LocalDate.now(ZoneId.of("Asia/Shanghai"))
+        var changed = false
+        for (pack in snapshot().packs) {
+            for (line in pack.lines) {
+                val key = pack.id + "/" + line.id
+                if (all.has(key) || !recallProgress(pack, line).passed) continue
+                val firstPass = (0 until events.length()).map { events.getJSONObject(it) }
+                    .filter {
+                        !it.optBoolean("deleted") &&
+                            it.optString("type") == "recall_checked" &&
+                            it.optString("dialogue_id") == pack.id &&
+                            it.optString("line_id") == line.id &&
+                            it.optBoolean("passed")
+                    }.minByOrNull { it.optString("created_at") }
+                val originalDay = runCatching {
+                    LocalDate.parse(firstPass?.optString("created_at")?.take(10).orEmpty())
+                }.getOrDefault(today)
+                all.put(key, JSONObject()
+                    .put("reference", line.en)
+                    .put("stage", 0)
+                    .put("due_on", originalDay.plusDays(1).toString())
+                    .put("original_day", originalDay.toString()))
+                changed = true
+            }
+        }
+        if (changed) persist()
+    }
+
     @Synchronized fun dueRetests(): List<ListeningRetest> {
+        bootstrapExistingRetests()
         val all = root.optJSONObject("recall_retests") ?: return emptyList()
         val today = LocalDate.now(ZoneId.of("Asia/Shanghai")).toString()
         val packs = snapshot().packs
@@ -521,7 +560,9 @@ internal class ListeningStore(
             val lineId = key.substringAfterLast("/")
             val pack = packs.firstOrNull { it.id == packId } ?: return@mapNotNull null
             val index = pack.lines.indexOfFirst { it.id == lineId }
-            if (index < 0 || pack.lines[index].en != item.optString("reference")) return@mapNotNull null
+            if (index < 0 || pack.lines[index].en != item.optString("reference") ||
+                !recallProgress(pack, pack.lines[index]).passed
+            ) return@mapNotNull null
             ListeningRetest(pack, index, item.optString("due_on"), item.optInt("stage"))
         }.sortedWith(compareBy({ it.dueOn }, { it.pack.title }, { it.lineIndex })).toList()
     }
