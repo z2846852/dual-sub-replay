@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="listening_continuous">Reproducción continua</string>
+    <string name="listening_recall">Repetir frase</string>
+    <string name="listening_recall_hidden">Escucha sin mostrar la frase</string>
+    <string name="listening_recall_playing">Reproduciendo la frase</string>
+    <string name="listening_recall_waiting">La frase ha terminado. Repítela abajo.</string>
+    <string name="listening_recall_hint">Usa el micrófono del teclado para repetir en inglés</string>
+    <string name="listening_recall_placeholder">Escribe o dicta lo que has oído</string>
+    <string name="listening_recall_check">Comprobar</string>
+    <string name="listening_recall_replay">Repetir audio</string>
+    <string name="listening_recall_retry">Intentar de nuevo</string>
+    <string name="listening_recall_previous">Anterior</string>
+    <string name="listening_recall_next">Siguiente</string>
+    <string name="listening_recall_expected">Original</string>
+    <string name="listening_recall_actual">Tu respuesta</string>
+    <string name="listening_recall_perfect">Todas las palabras coinciden</string>
+    <string name="listening_recall_differences">%1$d diferencias de palabras</string>
+    <string name="listening_recall_missing">[omitida]</string>
+    <string name="listening_recall_try_local">Usar voz del dispositivo</string>
+    <string name="listening_recall_note">Solo se compara el texto reconocido, no la pronunciación.</string>
+    <string name="listening_recall_clear">Borrar respuesta</string>
+    <string name="listening_recall_failed">No superada · intento %1$d</string>
+    <string name="listening_recall_recognition_correction">¿Error de reconocimiento? Corregir sin contar intento</string>
+    <string name="listening_recall_correction_pending">La corrección no contará como otro intento</string>
+    <string name="listening_recall_red_only">Solo rojo</string>
+    <string name="listening_recall_reveal">Ver respuesta</string>
+    <string name="listening_recall_summary">Correctas %1$d · Errores %2$d · Total %3$d</string>
+    <string name="listening_recall_status_passed">Correcta</string>
+    <string name="listening_recall_status_failed">Incorrecta</string>
+    <string name="listening_recall_status_new">Sin practicar</string>
+    <string name="listening_recall_all_sentences">Todas las frases</string>
+    <string name="listening_recall_wrong_only">Repetir errores %1$d</string>
+    <string name="listening_recall_pack_summary">Correctas %1$d/%2$d · Errores %3$d</string>
+</resources>

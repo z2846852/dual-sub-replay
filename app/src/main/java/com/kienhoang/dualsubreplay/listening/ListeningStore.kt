@@ -78,6 +78,7 @@ internal data class ListeningSnapshot(
     val due: Int,
     val unestablished: Int,
     val deviceId: String,
+    val recallRevision: Int,
 )
 
 /** Uses AtomicFile so a crash cannot destroy a half-written learning history. */
@@ -136,6 +137,7 @@ internal class ListeningStore(
             due,
             unsettled,
             root.optString("device_id"),
+            root.optInt("recall_revision"),
         )
     }
 
@@ -327,6 +329,124 @@ internal class ListeningStore(
 
     /** The synced flag is a device-local outbox field, not part of the remote immutable event. */
     private fun remoteEvent(original: JSONObject): JSONObject = JSONObject(original.toString()).apply { remove("synced") }
+
+    /** Per-line grades survive screen recreation and app updates without changing schema v1. */
+    @Synchronized fun recallProgress(
+        pack: ListeningPack,
+        line: ListeningLine,
+    ): RecallLineProgress {
+        val all = root.optJSONObject("recall_progress") ?: return RecallLineProgress()
+        val group = all.optJSONObject(pack.id) ?: return RecallLineProgress()
+        val item = group.optJSONObject(line.id) ?: return RecallLineProgress()
+        if (item.optString("reference") != line.en) return RecallLineProgress()
+        val wrong = item.optJSONArray("wrong_words") ?: JSONArray()
+        return RecallLineProgress(
+            attempts = item.optInt("attempts").coerceAtLeast(0),
+            passed = item.optBoolean("passed"),
+            firstTryPassed = item.optBoolean("first_try_passed"),
+            hintLevel = item.optInt("hint_level").coerceIn(0, 2),
+            firstAnswer = item.optString("first_answer"),
+            lastAnswer = item.optString("last_answer"),
+            draft = if (item.has("draft")) item.optString("draft") else null,
+            corrections = item.optInt("corrections").coerceAtLeast(0),
+            wrongWords = (0 until wrong.length()).map { wrong.optString(it) },
+        )
+    }
+
+    @Synchronized fun recallPosition(pack: ListeningPack): Int {
+        val positions = root.optJSONObject("recall_positions") ?: return 0
+        return positions.optInt(pack.id, 0).coerceIn(pack.lines.indices)
+    }
+
+    @Synchronized fun setRecallPosition(
+        pack: ListeningPack,
+        index: Int,
+    ) {
+        val positions = root.optJSONObject("recall_positions") ?: JSONObject()
+        root.put("recall_positions", positions)
+        val safe = index.coerceIn(pack.lines.indices)
+        if (positions.optInt(pack.id, -1) == safe) return
+        positions.put(pack.id, safe)
+        changedRecall()
+    }
+
+    @Synchronized fun saveRecallDraft(
+        pack: ListeningPack,
+        line: ListeningLine,
+        answer: String,
+    ) {
+        val old = recallProgress(pack, line)
+        if (old.draft == answer) return
+        putRecall(pack, line, old.copy(draft = answer.take(1000)))
+        changedRecall()
+    }
+
+    @Synchronized fun setRecallHint(
+        pack: ListeningPack,
+        line: ListeningLine,
+        level: Int,
+    ) {
+        val old = recallProgress(pack, line)
+        if (old.hintLevel >= level) return
+        putRecall(pack, line, old.hint(level))
+        changedRecall()
+    }
+
+    @Synchronized fun checkRecall(
+        pack: ListeningPack,
+        line: ListeningLine,
+        answer: String,
+        recognitionCorrection: Boolean,
+    ) {
+        val before = recallProgress(pack, line)
+        val result = ListeningRecallCheck.compare(line.en, answer)
+        val after = before.check(answer.take(1000), result, recognitionCorrection)
+        putRecall(pack, line, after)
+        val events = root.optJSONArray("events") ?: JSONArray().also { root.put("events", it) }
+        events.put(
+            event("recall_checked", "", pack.id, line.id)
+                .put("passed", after.passed)
+                .put("attempt", after.attempts)
+                .put("first_try_passed", after.firstTryPassed)
+                .put("hint_level", after.hintLevel)
+                .put("recognition_correction", recognitionCorrection && before.attempts > 0)
+                .put("differences", result.differences)
+                .put("wrong_words", JSONArray(after.wrongWords))
+                .put("initial_input", after.firstAnswer.take(240))
+                .put("checked_input", answer.take(240)),
+        )
+        changedRecall()
+    }
+
+    private fun putRecall(
+        pack: ListeningPack,
+        line: ListeningLine,
+        progress: RecallLineProgress,
+    ) {
+        val all = root.optJSONObject("recall_progress") ?: JSONObject()
+        root.put("recall_progress", all)
+        val group = all.optJSONObject(pack.id) ?: JSONObject()
+        all.put(pack.id, group)
+        group.put(
+            line.id,
+            JSONObject()
+                .put("reference", line.en)
+                .put("attempts", progress.attempts)
+                .put("passed", progress.passed)
+                .put("first_try_passed", progress.firstTryPassed)
+                .put("hint_level", progress.hintLevel)
+                .put("first_answer", progress.firstAnswer)
+                .put("last_answer", progress.lastAnswer)
+                .put("corrections", progress.corrections)
+                .put("wrong_words", JSONArray(progress.wrongWords))
+                .apply { progress.draft?.let { put("draft", it) } },
+        )
+    }
+
+    private fun changedRecall() {
+        root.put("recall_revision", root.optInt("recall_revision") + 1)
+        persist()
+    }
 
     @Synchronized fun putPacks(packs: List<ListeningPack>) {
         val previous = root.optJSONArray("packs") ?: JSONArray()

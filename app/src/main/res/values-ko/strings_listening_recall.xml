@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="listening_continuous">연속 재생</string>
+    <string name="listening_recall">문장 따라 말하기</string>
+    <string name="listening_recall_hidden">원문을 숨기고 듣기</string>
+    <string name="listening_recall_playing">문장 재생 중</string>
+    <string name="listening_recall_waiting">재생이 끝났습니다. 아래에서 따라 말해 보세요.</string>
+    <string name="listening_recall_hint">키보드 마이크로 영어 문장을 말하세요</string>
+    <string name="listening_recall_placeholder">들은 문장을 입력하거나 음성으로 말하세요</string>
+    <string name="listening_recall_check">비교</string>
+    <string name="listening_recall_replay">다시 듣기</string>
+    <string name="listening_recall_retry">다시 시도</string>
+    <string name="listening_recall_previous">이전 문장</string>
+    <string name="listening_recall_next">다음 문장</string>
+    <string name="listening_recall_expected">원문</string>
+    <string name="listening_recall_actual">내가 말한 내용</string>
+    <string name="listening_recall_perfect">모든 단어 일치</string>
+    <string name="listening_recall_differences">단어 차이 %1$d개</string>
+    <string name="listening_recall_missing">[누락]</string>
+    <string name="listening_recall_try_local">기기 음성 사용</string>
+    <string name="listening_recall_note">인식된 텍스트만 비교하며 실제 발음을 평가하지 않습니다.</string>
+    <string name="listening_recall_clear">응답 지우기</string>
+    <string name="listening_recall_failed">불합격 · %1$d번째 시도</string>
+    <string name="listening_recall_recognition_correction">음성 인식 오류인가요? 수정 후 재검사</string>
+    <string name="listening_recall_correction_pending">수정 확인은 시도 횟수에 포함되지 않습니다</string>
+    <string name="listening_recall_red_only">오류만 표시</string>
+    <string name="listening_recall_reveal">정답 보기</string>
+    <string name="listening_recall_summary">통과 %1$d · 오답 %2$d · 전체 %3$d</string>
+    <string name="listening_recall_status_passed">통과</string>
+    <string name="listening_recall_status_failed">미통과</string>
+    <string name="listening_recall_status_new">미연습</string>
+    <string name="listening_recall_all_sentences">모든 문장</string>
+    <string name="listening_recall_wrong_only">오답만 %1$d</string>
+    <string name="listening_recall_pack_summary">통과 %1$d/%2$d · 오답 %3$d</string>
+</resources>

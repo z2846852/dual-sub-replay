@@ -1,16 +1,21 @@
 package com.kienhoang.dualsubreplay.listening
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Headphones
@@ -18,6 +23,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -38,12 +44,15 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.kienhoang.dualsubreplay.R
 import com.kienhoang.dualsubreplay.data.SavedWord
 import com.kienhoang.dualsubreplay.data.KnownWordsRepository
 import com.kienhoang.dualsubreplay.data.knownWordKey
@@ -56,7 +65,7 @@ import java.security.MessageDigest
 
 /**
  * Full-screen overlay; original YouTube WebView stays composed and untouched underneath it.
- * TTS uses a separate foreground Service and can continue while the phone is locked.
+ * The speech service prefers Google natural-voice MP3/cache, with optional device TTS.
  */
 @Composable
 @Suppress("LongMethod", "CyclomaticComplexMethod")
@@ -95,6 +104,9 @@ internal fun ListeningScreen(
     var message by remember { mutableStateOf("") }
     var showSettings by remember { mutableStateOf(false) }
     var showText by remember { mutableStateOf(false) }
+    var recallMode by remember { mutableStateOf(false) }
+    var recallIndex by remember(pack?.id) { mutableStateOf(pack?.let(store::recallPosition) ?: 0) }
+    var wrongOnly by remember(pack?.id) { mutableStateOf(false) }
     var reviewMode by remember { mutableStateOf(false) }
     var reviewWord by remember { mutableStateOf<String?>(null) }
     var answerVisible by remember { mutableStateOf(false) }
@@ -113,7 +125,11 @@ internal fun ListeningScreen(
                 }
             }) { inner ->
                 LazyColumn(
-                    Modifier.fillMaxSize().padding(inner).padding(horizontal = 16.dp),
+                    Modifier
+                        .fillMaxSize()
+                        .padding(inner)
+                        .padding(horizontal = 16.dp)
+                        .imePadding(),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     item {
@@ -131,42 +147,132 @@ internal fun ListeningScreen(
                     }
                     if (pack != null) {
                         item {
-                            ListeningKaraokeCard(
-                                pack = pack,
-                                playback = playback,
-                                showText = showText,
-                                knownWords = if (studySettings.knownWords) knownWords else emptySet(),
-                                learningWords = learningWords,
-                                markNewWords = studySettings.knownWords && studySettings.markNewWords,
-                                onPrevious = {
-                                    val i = if (playback.packId == pack.id) playback.currentLine else 0
-                                    ListeningPlayback.start(ctx, pack, (i - 1).coerceAtLeast(0))
-                                },
-                                onNext = {
-                                    val i = if (playback.packId == pack.id) playback.currentLine else 0
-                                    ListeningPlayback.start(ctx, pack, (i + 1).coerceAtMost(pack.lines.lastIndex))
-                                },
-                                onPlayPause = {
-                                    when {
-                                        playback.playing && playback.packId == pack.id ->
-                                            ListeningPlayback.pause(ctx)
-                                        playback.paused && playback.packId == pack.id && playback.error == null ->
-                                            ListeningPlayback.resume(ctx)
-                                        else -> ListeningPlayback.start(
-                                            ctx,
-                                            pack,
-                                            if (playback.packId == pack.id) playback.currentLine else 0,
-                                        )
+                            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                FilterChip(
+                                    selected = !recallMode,
+                                    onClick = {
+                                        if (recallMode) {
+                                            ListeningPlayback.stop(ctx)
+                                            recallMode = false
+                                        }
+                                    },
+                                    label = { Text(stringResource(R.string.listening_continuous)) },
+                                )
+                                FilterChip(
+                                    selected = recallMode,
+                                    onClick = {
+                                        if (!recallMode) {
+                                            recallMode = true
+                                            showText = false
+                                            val target =
+                                                if (playback.packId == pack.id && playback.playing) {
+                                                    playback.currentLine
+                                                } else {
+                                                    store.recallPosition(pack)
+                                                }
+                                            recallIndex = target.coerceIn(pack.lines.indices)
+                                            store.setRecallPosition(pack, recallIndex)
+                                            ListeningPlayback.start(ctx, pack, recallIndex, oneShot = true)
+                                        }
+                                    },
+                                    label = { Text(stringResource(R.string.listening_recall)) },
+                                )
+                            }
+                        }
+                        if (recallMode) {
+                            item {
+                                val progress = pack.lines.map { store.recallProgress(pack, it) }
+                                val failed = pack.lines.indices.filter { progress[it].failed }
+                                val previousIndex =
+                                    if (wrongOnly && failed.isNotEmpty()) {
+                                        failed.lastOrNull { it < recallIndex } ?: failed.last()
+                                    } else {
+                                        (recallIndex - 1).takeIf { it >= 0 }
                                     }
-                                },
-                                onTryLocal = { ListeningPlayback.tryLocal(ctx) },
-                                onToggleText = { showText = !showText },
-                                onWordTap = { selected, line ->
-                                    if (playback.playing && playback.packId == pack.id) ListeningPlayback.pause(ctx)
-                                    word = selected
-                                    selectedLine = line
-                                },
-                            )
+                                val nextIndex =
+                                    if (wrongOnly && failed.isNotEmpty()) {
+                                        failed.firstOrNull { it > recallIndex } ?: failed.first()
+                                    } else {
+                                        (recallIndex + 1).takeIf { it <= pack.lines.lastIndex }
+                                    }
+
+                                fun playLine(i: Int) {
+                                    recallIndex = i.coerceIn(pack.lines.indices)
+                                    store.setRecallPosition(pack, recallIndex)
+                                    ListeningPlayback.start(ctx, pack, recallIndex, oneShot = true)
+                                }
+                                ListeningRecallCard(
+                                    pack = pack,
+                                    lineIndex = recallIndex,
+                                    progressByLine = progress,
+                                    playback = playback,
+                                    previousIndex = previousIndex,
+                                    nextIndex = nextIndex,
+                                    wrongOnly = wrongOnly,
+                                    onToggleWrongOnly = {
+                                        if (wrongOnly) {
+                                            wrongOnly = false
+                                        } else if (failed.isNotEmpty()) {
+                                            wrongOnly = true
+                                            playLine(failed.first())
+                                        }
+                                    },
+                                    onPlayLine = { playLine(it) },
+                                    onCheck = { answer, correction ->
+                                        store.checkRecall(pack, pack.lines[recallIndex], answer, correction)
+                                    },
+                                    onHint = { level ->
+                                        store.setRecallHint(pack, pack.lines[recallIndex], level)
+                                    },
+                                    onSaveDraft = { answer ->
+                                        store.saveRecallDraft(pack, pack.lines[recallIndex], answer)
+                                    },
+                                    onTryLocal = { ListeningPlayback.tryLocal(ctx) },
+                                    onWordTap = { selected, line ->
+                                        word = selected
+                                        selectedLine = line
+                                    },
+                                )
+                            }
+                        } else {
+                            item {
+                                ListeningKaraokeCard(
+                                    pack = pack,
+                                    playback = playback,
+                                    showText = showText,
+                                    knownWords = if (studySettings.knownWords) knownWords else emptySet(),
+                                    learningWords = learningWords,
+                                    markNewWords = studySettings.knownWords && studySettings.markNewWords,
+                                    onPrevious = {
+                                        val i = if (playback.packId == pack.id) playback.currentLine else 0
+                                        ListeningPlayback.start(ctx, pack, (i - 1).coerceAtLeast(0))
+                                    },
+                                    onNext = {
+                                        val i = if (playback.packId == pack.id) playback.currentLine else 0
+                                        ListeningPlayback.start(ctx, pack, (i + 1).coerceAtMost(pack.lines.lastIndex))
+                                    },
+                                    onPlayPause = {
+                                        when {
+                                            playback.playing && playback.packId == pack.id ->
+                                                ListeningPlayback.pause(ctx)
+                                            playback.paused && playback.packId == pack.id && playback.error == null ->
+                                                ListeningPlayback.resume(ctx)
+                                            else -> ListeningPlayback.start(
+                                                ctx,
+                                                pack,
+                                                if (playback.packId == pack.id) playback.currentLine else 0,
+                                            )
+                                        }
+                                    },
+                                    onTryLocal = { ListeningPlayback.tryLocal(ctx) },
+                                    onToggleText = { showText = !showText },
+                                    onWordTap = { selected, line ->
+                                        if (playback.playing && playback.packId == pack.id) ListeningPlayback.pause(ctx)
+                                        word = selected
+                                        selectedLine = line
+                                    },
+                                )
+                            }
                         }
                     }
                     if (state.unestablished >= 100) {
@@ -329,13 +435,57 @@ internal fun ListeningScreen(
                     } else {
                         item { Text("选择听力材料", style = MaterialTheme.typography.titleSmall) }
                         items(state.packs, key = { it.id }) { p ->
+                            val statuses = p.lines.map { store.recallProgress(p, it) }
+                            val completed = statuses.count { it.passed }
+                            val errors = statuses.count { it.failed }
                             OutlinedButton(modifier = Modifier.fillMaxWidth(), onClick = {
                                 currentId = p.id
                                 selectedLine = null
                                 word = null
                                 showText = false
+                                if (recallMode) {
+                                    wrongOnly = false
+                                    recallIndex = store.recallPosition(p)
+                                    ListeningPlayback.start(ctx, p, recallIndex, oneShot = true)
+                                } else if (playback.playing && playback.packId != p.id) {
+                                    ListeningPlayback.stop(ctx)
+                                }
                             }) {
-                                Text((if (p.id == pack?.id) "● " else "") + p.title + " · " + p.level)
+                                Column(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                                ) {
+                                    Text((if (p.id == pack?.id) "● " else "") + p.title + " · " + p.level)
+                                    Text(
+                                        stringResource(
+                                            R.string.listening_recall_pack_summary,
+                                            completed,
+                                            p.lines.size,
+                                            errors,
+                                        ),
+                                        style = MaterialTheme.typography.labelSmall,
+                                    )
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(2.dp),
+                                    ) {
+                                        statuses.forEach { item ->
+                                            val color =
+                                                when {
+                                                    item.passed -> MaterialTheme.colorScheme.primary
+                                                    item.failed -> MaterialTheme.colorScheme.error
+                                                    else -> MaterialTheme.colorScheme.surfaceVariant
+                                                }
+                                            Box(
+                                                Modifier
+                                                    .weight(1f)
+                                                    .height(6.dp)
+                                                    .clip(RoundedCornerShape(3.dp))
+                                                    .background(color),
+                                            )
+                                        }
+                                    }
+                                }
                             }
                         }
                         if (pack != null) {
@@ -397,7 +547,9 @@ internal fun ListeningScreen(
                 wordPronouncer.stop()
                 word = null
                 selectedLine = null
-                if (playback.paused && playback.packId == currentPack.id) ListeningPlayback.resume(ctx)
+                if (!recallMode && playback.paused && playback.packId == currentPack.id) {
+                    ListeningPlayback.resume(ctx)
+                }
             },
             title = { Text("听力生词 · $selectedWord") },
             text = {
@@ -415,6 +567,7 @@ internal fun ListeningScreen(
                                 ctx,
                                 currentPack,
                                 currentPack.lines.indexOf(selected).coerceAtLeast(0),
+                                oneShot = recallMode,
                             )
                         }) { Text("▶ 重听本句") }
                     }
@@ -422,7 +575,7 @@ internal fun ListeningScreen(
                         Text(selected.zh, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     Text(
-                        if (playback.paused && playback.packId == currentPack.id) {
+                        if (!recallMode && playback.paused && playback.packId == currentPack.id) {
                             "朗读已暂停。收藏后将从这一句开头继续。"
                         } else {
                             "收藏到统一的生词簿，之后可以做听辨复习并同步 GitHub。"
@@ -466,7 +619,9 @@ internal fun ListeningScreen(
                                 ),
                             )
                             message = "已收藏 $w · 待下次 GitHub 同步"
-                            if (playback.paused && playback.packId == savedPack.id) ListeningPlayback.resume(ctx)
+                            if (!recallMode && playback.paused && playback.packId == savedPack.id) {
+                                ListeningPlayback.resume(ctx)
+                            }
                         } catch (e: Exception) {
                             message = "收藏失败：" + (e.message ?: "未知错误")
                         }
@@ -478,7 +633,9 @@ internal fun ListeningScreen(
                     wordPronouncer.stop()
                     word = null
                     selectedLine = null
-                    if (playback.paused && playback.packId == currentPack.id) ListeningPlayback.resume(ctx)
+                    if (!recallMode && playback.paused && playback.packId == currentPack.id) {
+                        ListeningPlayback.resume(ctx)
+                    }
                 }) { Text("不收藏 · 继续") }
             },
         )

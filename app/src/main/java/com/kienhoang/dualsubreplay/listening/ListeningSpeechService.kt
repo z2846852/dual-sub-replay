@@ -36,6 +36,8 @@ internal data class ListeningPlaybackState(
     val spokenEnd: Int = 0,
     val hasWordTimings: Boolean = false,
     val voiceName: String? = null,
+    /** True only after a one-sentence recall playback has completely finished. */
+    val finished: Boolean = false,
 )
 
 /** Kept outside Compose so the foreground Service can update the current line. */
@@ -46,12 +48,14 @@ internal object ListeningPlayback {
         context: Context,
         pack: ListeningPack,
         lineIndex: Int = 0,
+        oneShot: Boolean = false,
     ) {
         val intent =
             Intent(context, ListeningSpeechService::class.java).apply {
                 action = ListeningSpeechService.PLAY
                 putExtra(ListeningSpeechService.CONTENT, pack.toJson().toString())
                 putExtra(ListeningSpeechService.LINE, lineIndex)
+                putExtra(ListeningSpeechService.ONE_SHOT, oneShot)
             }
         ContextCompat.startForegroundService(context, intent)
     }
@@ -89,6 +93,7 @@ internal class ListeningSpeechService :
         const val STOP = "offline-listening.STOP"
         const val CONTENT = "dialogue"
         const val LINE = "line"
+        const val ONE_SHOT = "one_shot"
         private const val CHANNEL = "offline_listening"
         private const val NOTICE = 18209
     }
@@ -99,6 +104,7 @@ internal class ListeningSpeechService :
     private var pack: ListeningPack? = null
     private var index = 0
     private var running = false
+    private var oneShot = false
     private var utteranceGeneration = 0L
     private var activeUtterance: String? = null
     private var voiceName: String? = null
@@ -160,6 +166,7 @@ internal class ListeningSpeechService :
             val parsed = ListeningPack.fromJson(org.json.JSONObject(intent.getStringExtra(CONTENT) ?: ""))
             pack = parsed
             index = intent.getIntExtra(LINE, 0).coerceIn(0, parsed.lines.lastIndex)
+            oneShot = intent.getBooleanExtra(ONE_SHOT, false)
             running = true
             cancelCurrentAudio()
             ListeningPlayback.state.value = ListeningPlaybackState(parsed.id, index, true)
@@ -329,6 +336,15 @@ internal class ListeningSpeechService :
     }
 
     private fun nextLine() {
+        if (oneShot) {
+            running = false
+            cancelCurrentAudio()
+            ListeningPlayback.state.value =
+                ListeningPlayback.state.value.copy(playing = false, paused = false, finished = true)
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            stopSelf()
+            return
+        }
         index++
         if (index >= (pack?.lines?.size ?: 0)) stopNow() else speakLine()
     }

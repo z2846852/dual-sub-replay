@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="listening_continuous">Ardıcıl oxutma</string>
+    <string name="listening_recall">Cümləni təkrarla</string>
+    <string name="listening_recall_hidden">Orijinal cümləni gizlədərək dinlə</string>
+    <string name="listening_recall_playing">Cümlə oxunur</string>
+    <string name="listening_recall_waiting">Cümlə bitdi. Aşağıda təkrarla.</string>
+    <string name="listening_recall_hint">İngiliscə təkrar üçün klaviatura mikrofonundan istifadə edin</string>
+    <string name="listening_recall_placeholder">Eşitdiyinizi yazın və ya səslə daxil edin</string>
+    <string name="listening_recall_check">Yoxla</string>
+    <string name="listening_recall_replay">Yenidən dinlə</string>
+    <string name="listening_recall_retry">Yenidən cəhd et</string>
+    <string name="listening_recall_previous">Əvvəlki</string>
+    <string name="listening_recall_next">Növbəti</string>
+    <string name="listening_recall_expected">Orijinal</string>
+    <string name="listening_recall_actual">Sizin təkrarınız</string>
+    <string name="listening_recall_perfect">Bütün sözlər uyğun gəlir</string>
+    <string name="listening_recall_differences">%1$d söz fərqi</string>
+    <string name="listening_recall_missing">[buraxılıb]</string>
+    <string name="listening_recall_try_local">Cihaz səsini sına</string>
+    <string name="listening_recall_note">Yalnız tanınmış mətn müqayisə edilir, tələffüz yox.</string>
+    <string name="listening_recall_clear">Cavabı sil</string>
+    <string name="listening_recall_failed">Keçilmədi · %1$d-ci cəhd</string>
+    <string name="listening_recall_recognition_correction">Səs tanıma səhvi? Düzəlt və yenidən yoxla</string>
+    <string name="listening_recall_correction_pending">Bu düzəliş yeni cəhd sayılmayacaq</string>
+    <string name="listening_recall_red_only">Yalnız qırmızı</string>
+    <string name="listening_recall_reveal">Cavabı göstər</string>
+    <string name="listening_recall_summary">Keçildi %1$d · Səhv %2$d · Cəmi %3$d</string>
+    <string name="listening_recall_status_passed">Keçildi</string>
+    <string name="listening_recall_status_failed">Keçilmədi</string>
+    <string name="listening_recall_status_new">Məşq edilməyib</string>
+    <string name="listening_recall_all_sentences">Bütün cümlələr</string>
+    <string name="listening_recall_wrong_only">Səhvləri təkrarla %1$d</string>
+    <string name="listening_recall_pack_summary">Keçildi %1$d/%2$d · Səhv %3$d</string>
+</resources>

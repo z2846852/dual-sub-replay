@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="listening_continuous">连续播放</string>
+    <string name="listening_recall">逐句复述</string>
+    <string name="listening_recall_hidden">盲听中 · 隐藏原句</string>
+    <string name="listening_recall_playing">正在播放本句</string>
+    <string name="listening_recall_waiting">本句已播放完，请在下方复述</string>
+    <string name="listening_recall_hint">用手机输入法的麦克风说英文，再点击核对</string>
+    <string name="listening_recall_placeholder">输入或语音复述听到的句子</string>
+    <string name="listening_recall_check">核对</string>
+    <string name="listening_recall_replay">重听本句</string>
+    <string name="listening_recall_retry">再试一次</string>
+    <string name="listening_recall_previous">上一句</string>
+    <string name="listening_recall_next">下一句</string>
+    <string name="listening_recall_expected">原句</string>
+    <string name="listening_recall_actual">你的复述</string>
+    <string name="listening_recall_perfect">词汇完全一致</string>
+    <string name="listening_recall_differences">%1$d 处词汇差异</string>
+    <string name="listening_recall_missing">〔漏词〕</string>
+    <string name="listening_recall_try_local">尝试本机语音</string>
+    <string name="listening_recall_note">这里只对照语音转写文字，不能判断真实发音。</string>
+    <string name="listening_recall_clear">清空复述</string>
+    <string name="listening_recall_failed">未通过 · 第 %1$d 次核对</string>
+    <string name="listening_recall_recognition_correction">语音识别有误？修改后不计次数</string>
+    <string name="listening_recall_correction_pending">本次按识别修正重新核对，不增加听辨次数</string>
+    <string name="listening_recall_red_only">仅标红</string>
+    <string name="listening_recall_reveal">揭晓答案</string>
+    <string name="listening_recall_summary">通过 %1$d · 错句 %2$d · 共 %3$d</string>
+    <string name="listening_recall_status_passed">通过</string>
+    <string name="listening_recall_status_failed">未通过</string>
+    <string name="listening_recall_status_new">未练习</string>
+    <string name="listening_recall_all_sentences">练习全部句子</string>
+    <string name="listening_recall_wrong_only">只练错句 %1$d</string>
+    <string name="listening_recall_pack_summary">通过 %1$d/%2$d · 错句 %3$d</string>
+</resources>

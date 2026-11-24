@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="listening_continuous">連続再生</string>
+    <string name="listening_recall">一文ずつ復唱</string>
+    <string name="listening_recall_hidden">原文を隠して聞く</string>
+    <string name="listening_recall_playing">この文を再生中</string>
+    <string name="listening_recall_waiting">再生が終了しました。下に復唱を入力してください。</string>
+    <string name="listening_recall_hint">キーボードのマイクで英語を復唱してください</string>
+    <string name="listening_recall_placeholder">聞こえた文を入力または音声入力</string>
+    <string name="listening_recall_check">照合</string>
+    <string name="listening_recall_replay">もう一度聞く</string>
+    <string name="listening_recall_retry">やり直す</string>
+    <string name="listening_recall_previous">前の文</string>
+    <string name="listening_recall_next">次の文</string>
+    <string name="listening_recall_expected">原文</string>
+    <string name="listening_recall_actual">復唱</string>
+    <string name="listening_recall_perfect">すべて一致</string>
+    <string name="listening_recall_differences">単語の相違 %1$d 件</string>
+    <string name="listening_recall_missing">［脱落］</string>
+    <string name="listening_recall_try_local">端末の音声を試す</string>
+    <string name="listening_recall_note">音声入力の文字列のみ比較します。発音の評価ではありません。</string>
+    <string name="listening_recall_clear">回答を消去</string>
+    <string name="listening_recall_failed">不正解 · %1$d 回目</string>
+    <string name="listening_recall_recognition_correction">音声認識の誤り？修正して再判定</string>
+    <string name="listening_recall_correction_pending">この修正では試行回数が増えません</string>
+    <string name="listening_recall_red_only">誤りのみ</string>
+    <string name="listening_recall_reveal">正解を見る</string>
+    <string name="listening_recall_summary">正解 %1$d · 要復習 %2$d · 全 %3$d</string>
+    <string name="listening_recall_status_passed">正解</string>
+    <string name="listening_recall_status_failed">不正解</string>
+    <string name="listening_recall_status_new">未練習</string>
+    <string name="listening_recall_all_sentences">全ての文</string>
+    <string name="listening_recall_wrong_only">間違いのみ %1$d</string>
+    <string name="listening_recall_pack_summary">正解 %1$d/%2$d · 要復習 %3$d</string>
+</resources>

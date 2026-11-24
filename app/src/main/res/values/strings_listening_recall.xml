@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="listening_continuous">Continuous</string>
+    <string name="listening_recall">Sentence recall</string>
+    <string name="listening_recall_hidden">Listening: the original sentence is hidden</string>
+    <string name="listening_recall_playing">Playing this sentence</string>
+    <string name="listening_recall_waiting">Playback finished. Dictate your recall below.</string>
+    <string name="listening_recall_hint">Use the keyboard microphone to repeat the English sentence</string>
+    <string name="listening_recall_placeholder">Type or dictate what you heard</string>
+    <string name="listening_recall_check">Check</string>
+    <string name="listening_recall_replay">Replay</string>
+    <string name="listening_recall_retry">Try again</string>
+    <string name="listening_recall_previous">Previous</string>
+    <string name="listening_recall_next">Next</string>
+    <string name="listening_recall_expected">Original</string>
+    <string name="listening_recall_actual">Your recall</string>
+    <string name="listening_recall_perfect">All words match</string>
+    <string name="listening_recall_differences">%1$d word differences</string>
+    <string name="listening_recall_missing">[missed]</string>
+    <string name="listening_recall_try_local">Try device voice</string>
+    <string name="listening_recall_note">Comparison checks recognized words, not pronunciation.</string>
+    <string name="listening_recall_clear">Clear response</string>
+    <string name="listening_recall_failed">Not passed · attempt %1$d</string>
+    <string name="listening_recall_recognition_correction">Recognition error? Recheck edited text</string>
+    <string name="listening_recall_correction_pending">This correction will not count as another listening attempt</string>
+    <string name="listening_recall_red_only">Red only</string>
+    <string name="listening_recall_reveal">Show answer</string>
+    <string name="listening_recall_summary">Passed %1$d · To retry %2$d · Total %3$d</string>
+    <string name="listening_recall_status_passed">Passed</string>
+    <string name="listening_recall_status_failed">Not passed</string>
+    <string name="listening_recall_status_new">Not practiced</string>
+    <string name="listening_recall_all_sentences">All sentences</string>
+    <string name="listening_recall_wrong_only">Retry wrong %1$d</string>
+    <string name="listening_recall_pack_summary">Passed %1$d/%2$d · To retry %3$d</string>
+</resources>
