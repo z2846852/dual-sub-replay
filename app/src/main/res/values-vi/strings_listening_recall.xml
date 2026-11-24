@@ -23,7 +23,7 @@
     <string name="listening_recall_failed">Chưa đạt · lần %1$d</string>
     <string name="listening_recall_recognition_correction">Nhận dạng sai? Sửa và kiểm tra lại</string>
     <string name="listening_recall_correction_pending">Lần sửa này không tính thêm lượt nghe</string>
-    <string name="listening_recall_red_only">Chỉ tô đỏ</string>
+    <string name="listening_recall_show_meaning">Xem nghĩa tiếng Trung</string>
     <string name="listening_recall_reveal">Xem đáp án</string>
     <string name="listening_recall_summary">Đạt %1$d · Sai %2$d · Tổng %3$d</string>
     <string name="listening_recall_status_passed">Đạt</string>
