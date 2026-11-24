@@ -8,7 +8,7 @@
     <string name="listening_recall_hint">Use o microfone do teclado para falar em inglês</string>
     <string name="listening_recall_placeholder">Digite ou dite o que ouviu</string>
     <string name="listening_recall_check">Conferir</string>
-    <string name="listening_recall_replay">Ouvir novamente</string>
+    <string name="listening_recall_replay">Repetir</string>
     <string name="listening_recall_retry">Tentar novamente</string>
     <string name="listening_recall_previous">Anterior</string>
     <string name="listening_recall_next">Próxima</string>
@@ -32,4 +32,11 @@
     <string name="listening_recall_all_sentences">Todas as frases</string>
     <string name="listening_recall_wrong_only">Refazer erradas %1$d</string>
     <string name="listening_recall_pack_summary">Certas %1$d/%2$d · Erradas %3$d</string>
+    <string name="listening_recall_stories">Histórias</string>
+    <string name="listening_recall_sort_recent">Uso recente</string>
+    <string name="listening_recall_sort_easy">Mais fáceis</string>
+    <string name="listening_recall_sort_hard">Mais difíceis</string>
+    <string name="listening_recall_sort_title">Título</string>
+    <string name="listening_recall_auto_next">Avançar automaticamente ao acertar</string>
+    <string name="listening_recall_no_stories">Ainda não há histórias. Conecte o GitHub em Configurações.</string>
 </resources>

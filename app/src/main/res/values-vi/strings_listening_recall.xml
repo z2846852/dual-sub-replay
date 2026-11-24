@@ -32,4 +32,11 @@
     <string name="listening_recall_all_sentences">Tất cả câu</string>
     <string name="listening_recall_wrong_only">Luyện câu sai %1$d</string>
     <string name="listening_recall_pack_summary">Đạt %1$d/%2$d · Sai %3$d</string>
+    <string name="listening_recall_stories">Danh sách hội thoại</string>
+    <string name="listening_recall_sort_recent">Dùng gần đây</string>
+    <string name="listening_recall_sort_easy">Dễ trước</string>
+    <string name="listening_recall_sort_hard">Khó trước</string>
+    <string name="listening_recall_sort_title">Tiêu đề</string>
+    <string name="listening_recall_auto_next">Đúng thì tự chuyển câu tiếp</string>
+    <string name="listening_recall_no_stories">Chưa có hội thoại. Kết nối GitHub trong Cài đặt.</string>
 </resources>

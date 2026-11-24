@@ -4,11 +4,11 @@
     <string name="listening_recall">逐句复述</string>
     <string name="listening_recall_hidden">盲听中 · 隐藏原句</string>
     <string name="listening_recall_playing">正在播放本句</string>
-    <string name="listening_recall_waiting">本句已播放完，请在下方复述</string>
+    <string name="listening_recall_waiting">已播放 · 请复述</string>
     <string name="listening_recall_hint">用手机输入法的麦克风说英文，再点击核对</string>
     <string name="listening_recall_placeholder">输入或语音复述听到的句子</string>
     <string name="listening_recall_check">核对</string>
-    <string name="listening_recall_replay">重听本句</string>
+    <string name="listening_recall_replay">重听</string>
     <string name="listening_recall_retry">再试一次</string>
     <string name="listening_recall_previous">上一句</string>
     <string name="listening_recall_next">下一句</string>
@@ -32,4 +32,11 @@
     <string name="listening_recall_all_sentences">练习全部句子</string>
     <string name="listening_recall_wrong_only">只练错句 %1$d</string>
     <string name="listening_recall_pack_summary">通过 %1$d/%2$d · 错句 %3$d</string>
+    <string name="listening_recall_stories">故事总览</string>
+    <string name="listening_recall_sort_recent">最近使用</string>
+    <string name="listening_recall_sort_easy">难度从易到难</string>
+    <string name="listening_recall_sort_hard">难度从难到易</string>
+    <string name="listening_recall_sort_title">按名称</string>
+    <string name="listening_recall_auto_next">全对自动下一句</string>
+    <string name="listening_recall_no_stories">暂无故事，请在设置中连接 GitHub 并同步。</string>
 </resources>

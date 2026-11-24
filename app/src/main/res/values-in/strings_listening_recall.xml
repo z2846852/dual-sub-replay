@@ -32,4 +32,11 @@
     <string name="listening_recall_all_sentences">Semua kalimat</string>
     <string name="listening_recall_wrong_only">Ulangi salah %1$d</string>
     <string name="listening_recall_pack_summary">Lulus %1$d/%2$d · Salah %3$d</string>
+    <string name="listening_recall_stories">Daftar cerita</string>
+    <string name="listening_recall_sort_recent">Terakhir digunakan</string>
+    <string name="listening_recall_sort_easy">Mudah dulu</string>
+    <string name="listening_recall_sort_hard">Sulit dulu</string>
+    <string name="listening_recall_sort_title">Judul</string>
+    <string name="listening_recall_auto_next">Lanjut otomatis jika benar</string>
+    <string name="listening_recall_no_stories">Belum ada cerita. Hubungkan GitHub lewat Setelan.</string>
 </resources>

@@ -32,4 +32,11 @@
     <string name="listening_recall_all_sentences">모든 문장</string>
     <string name="listening_recall_wrong_only">오답만 %1$d</string>
     <string name="listening_recall_pack_summary">통과 %1$d/%2$d · 오답 %3$d</string>
+    <string name="listening_recall_stories">스토리 목록</string>
+    <string name="listening_recall_sort_recent">최근 사용</string>
+    <string name="listening_recall_sort_easy">쉬운 순</string>
+    <string name="listening_recall_sort_hard">어려운 순</string>
+    <string name="listening_recall_sort_title">제목</string>
+    <string name="listening_recall_auto_next">정답이면 자동으로 다음 문장</string>
+    <string name="listening_recall_no_stories">스토리가 없습니다. 설정에서 GitHub를 동기화하세요.</string>
 </resources>

@@ -32,4 +32,11 @@
     <string name="listening_recall_all_sentences">Bütün cümlələr</string>
     <string name="listening_recall_wrong_only">Səhvləri təkrarla %1$d</string>
     <string name="listening_recall_pack_summary">Keçildi %1$d/%2$d · Səhv %3$d</string>
+    <string name="listening_recall_stories">Hekayələr</string>
+    <string name="listening_recall_sort_recent">Son istifadə</string>
+    <string name="listening_recall_sort_easy">Asandan çətinə</string>
+    <string name="listening_recall_sort_hard">Çətindən asana</string>
+    <string name="listening_recall_sort_title">Başlıq</string>
+    <string name="listening_recall_auto_next">Düz olduqda avtomatik keç</string>
+    <string name="listening_recall_no_stories">Hələ hekayə yoxdur. GitHub-u ayarlardan qoşun.</string>
 </resources>

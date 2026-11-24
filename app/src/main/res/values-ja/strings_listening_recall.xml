@@ -8,7 +8,7 @@
     <string name="listening_recall_hint">キーボードのマイクで英語を復唱してください</string>
     <string name="listening_recall_placeholder">聞こえた文を入力または音声入力</string>
     <string name="listening_recall_check">照合</string>
-    <string name="listening_recall_replay">もう一度聞く</string>
+    <string name="listening_recall_replay">再生</string>
     <string name="listening_recall_retry">やり直す</string>
     <string name="listening_recall_previous">前の文</string>
     <string name="listening_recall_next">次の文</string>
@@ -32,4 +32,11 @@
     <string name="listening_recall_all_sentences">全ての文</string>
     <string name="listening_recall_wrong_only">間違いのみ %1$d</string>
     <string name="listening_recall_pack_summary">正解 %1$d/%2$d · 要復習 %3$d</string>
+    <string name="listening_recall_stories">ストーリー一覧</string>
+    <string name="listening_recall_sort_recent">最近使用</string>
+    <string name="listening_recall_sort_easy">易しい順</string>
+    <string name="listening_recall_sort_hard">難しい順</string>
+    <string name="listening_recall_sort_title">タイトル</string>
+    <string name="listening_recall_auto_next">正解で自動的に次へ</string>
+    <string name="listening_recall_no_stories">ストーリーがありません。設定からGitHubを同期してください。</string>
 </resources>
