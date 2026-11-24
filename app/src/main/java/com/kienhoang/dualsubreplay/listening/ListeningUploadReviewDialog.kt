@@ -264,7 +264,7 @@ private fun ReviewAttemptRow(
                 }
             }
             if (!deleted && type in setOf("recall_checked", "recall_insight")) {
-                TextButton(onClick = onDelete, enabled = !busy) {
+                TextButton(onClick = { onDelete(id) }, enabled = !busy) {
                     Text("删除", color = MaterialTheme.colorScheme.error)
                 }
             }
