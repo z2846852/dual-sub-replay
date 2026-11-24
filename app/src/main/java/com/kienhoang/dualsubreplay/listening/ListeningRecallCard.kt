@@ -19,10 +19,12 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -73,6 +75,7 @@ internal fun ListeningRecallCard(
     onCheck: (String, Boolean) -> Unit,
     onHint: (Int) -> Unit,
     onSaveDraft: (String) -> Unit,
+    onSaveInsight: (String, String, String) -> Unit,
     onTryLocal: () -> Unit,
     onWordTap: (String, ListeningLine) -> Unit,
 ) {
@@ -93,6 +96,10 @@ internal fun ListeningRecallCard(
     var revealed by remember(pack.id, line.id) { mutableIntStateOf(0) }
     var correctionPending by remember(pack.id, line.id) { mutableStateOf(false) }
     var advancePending by remember(pack.id, line.id) { mutableStateOf(false) }
+    var showInsightEditor by remember(pack.id, line.id) { mutableStateOf(false) }
+    var insightCategory by remember(pack.id, line.id) { mutableStateOf("listening") }
+    var insightNote by remember(pack.id, line.id) { mutableStateOf("") }
+    var insightSaved by remember(pack.id, line.id) { mutableStateOf(false) }
     val checkedCurrent = lastChecked != null && lastChecked == answer
     val comparison =
         remember(line.en, lastChecked) {
@@ -240,6 +247,11 @@ internal fun ListeningRecallCard(
                     },
                     contentPadding = PaddingValues(horizontal = 2.dp, vertical = 0.dp),
                 ) { Text(stringResource(R.string.listening_recall_recognition_correction)) }
+            }
+            if (progress.attempts > 0) {
+                TextButton(onClick = { showInsightEditor = true }) {
+                    Text(if (insightSaved) "★ 已收藏此错误" else "☆ 收藏有价值的错误")
+                }
             }
             if (correctionPending) {
                 Text(
@@ -427,6 +439,57 @@ internal fun ListeningRecallCard(
                 ) { Text(stringResource(R.string.listening_recall_next)) }
             }
         }
+    }
+    if (showInsightEditor) {
+        val choices =
+            listOf(
+                "listening" to "听辨混淆",
+                "missing" to "漏听/漏词",
+                "preposition" to "介词/搭配",
+                "grammar" to "语法/时态",
+                "transcription" to "输入法误识别",
+                "other" to "其他",
+            )
+        AlertDialog(
+            onDismissRequest = { showInsightEditor = false },
+            title = { Text("主动收藏这一类错误") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        "这是一条主动标注的学习记录，与自动核对日志分开存储；只有你确认上传才会同步。",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        choices.forEach { (key, label) ->
+                            FilterChip(
+                                selected = insightCategory == key,
+                                onClick = { insightCategory = key },
+                                label = { Text(label) },
+                            )
+                        }
+                    }
+                    OutlinedTextField(
+                        value = insightNote,
+                        onValueChange = { insightNote = it.take(300) },
+                        label = { Text("为什么值得记住（可选）") },
+                        placeholder = { Text("例：at the lights 是固定搭配") },
+                        minLines = 2,
+                        maxLines = 3,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            },
+            confirmButton = {
+                Button(onClick = {
+                    onSaveInsight(insightCategory, insightNote, answer)
+                    insightSaved = true
+                    showInsightEditor = false
+                }) { Text("收藏到重点错误") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showInsightEditor = false }) { Text("取消") }
+            },
+        )
     }
 }
 

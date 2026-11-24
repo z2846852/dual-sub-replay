@@ -109,6 +109,7 @@ internal fun ListeningScreen(
     var showSettings by remember { mutableStateOf(false) }
     var showText by remember { mutableStateOf(false) }
     var showSortMenu by remember { mutableStateOf(false) }
+    var showUploadReview by remember { mutableStateOf(false) }
     var recallMode by remember { mutableStateOf(false) }
     var recallIndex by remember(pack?.id) { mutableStateOf(pack?.let(store::recallPosition) ?: 0) }
     var wrongOnly by remember(pack?.id) { mutableStateOf(false) }
@@ -251,6 +252,15 @@ internal fun ListeningScreen(
                                     },
                                     onSaveDraft = { answer ->
                                         store.saveRecallDraft(pack, pack.lines[recallIndex], answer)
+                                    },
+                                    onSaveInsight = { category, note, observed ->
+                                        store.saveRecallInsight(
+                                            pack,
+                                            pack.lines[recallIndex],
+                                            observed,
+                                            category,
+                                            note,
+                                        )
                                     },
                                     onTryLocal = { ListeningPlayback.tryLocal(ctx) },
                                     onWordTap = { selected, line ->
@@ -524,15 +534,8 @@ internal fun ListeningScreen(
                     item {
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             Button(enabled = !busy && connected, onClick = {
-                                busy = true
-                                scope.launch {
-                                    try {
-                                        message = github.syncNow()
-                                    } finally {
-                                        busy = false
-                                    }
-                                }
-                            }) { Text("手动同步 GitHub") }
+                                showUploadReview = true
+                            }) { Text("审核并同步 GitHub") }
                             if (busy) CircularProgressIndicator()
                         }
                         if (message.isNotBlank()) Text(message, style = MaterialTheme.typography.bodySmall)
@@ -606,6 +609,28 @@ internal fun ListeningScreen(
             }
         }
     }
+    if (showUploadReview) {
+        ListeningUploadReviewDialog(
+            pending = store.pendingEvents(),
+            excluded = store.excludedEvents(),
+            busy = busy,
+            onExclude = { store.setUploadExcluded(it, true) },
+            onRestore = { store.setUploadExcluded(it, false) },
+            onConfirm = {
+                busy = true
+                scope.launch {
+                    try {
+                        message = github.syncNow(uploadEvents = true)
+                    } finally {
+                        busy = false
+                        showUploadReview = false
+                    }
+                }
+            },
+            onDismiss = { if (!busy) showUploadReview = false },
+        )
+    }
+
     // The word card must be immediately reachable after a tap, not buried below all dialogue rows.
     // Tapping a word pauses speech first; collecting it does not count as a successful audio review.
     val selectedWord = word
