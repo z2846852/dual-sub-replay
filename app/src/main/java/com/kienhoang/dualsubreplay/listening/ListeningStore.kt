@@ -115,7 +115,7 @@ internal class ListeningStore(
         for (i in 0 until events.length()) {
             val e = events.optJSONObject(i) ?: continue
             if (!e.optBoolean("deleted") && ListeningSyncPolicy.mayUpload(e.optBoolean("synced"))) pending++
-            if (e.optBoolean("deleted") && e.optBoolean("synced") && !e.optBoolean("deletion_synced")) pending++
+            if (e.optBoolean("deleted") && e.optBoolean("synced")) pending++
             val word = e.optString("word").lowercase()
             if (e.optString("type") == "saved") savedWords.add(word)
         }
@@ -168,55 +168,48 @@ internal class ListeningStore(
         val list = root.optJSONArray("events") ?: return emptyList()
         return (0 until list.length())
             .map { list.getJSONObject(it) }
-            .filter { it.optString("type") in setOf("recall_checked", "recall_insight") }
+            .filter { !it.optBoolean("deleted") && it.optString("type") in setOf("recall_checked", "recall_insight") }
             .map { JSONObject(it.toString()) }
     }
 
-    /** Deletion is a soft local tombstone until the remote JSONL has been pruned. */
+    /**
+     * Delete a user-selected practice event. Never-uploaded records are removed immediately.
+     * Previously uploaded records disappear from the UI immediately, but their original device,
+     * month and ID remain locally until the GitHub file edit succeeds or can be retried.
+     * No deletion marker is created in GitHub.
+     */
     @Synchronized fun deleteReviewRecord(eventId: String) {
-        val list = root.optJSONArray("events") ?: return
-        val impacted = HashSet<String>()
-        for (i in 0 until list.length()) {
-            val item = list.getJSONObject(i)
+        val entries = root.optJSONArray("events") ?: return
+        val ids = HashSet<String>()
+        for (i in 0 until entries.length()) {
+            val item = entries.getJSONObject(i)
             if (item.optString("id") == eventId &&
                 item.optString("type") in setOf("recall_checked", "recall_insight")
-            ) impacted.add(item.optString("id"))
+            ) ids.add(eventId)
         }
-        if (impacted.isEmpty()) return
-        // An insight tied to a deleted attempt should not survive as misleading evidence.
-        for (i in 0 until list.length()) {
-            val item = list.getJSONObject(i)
-            if (item.optString("source_event_id") in impacted && item.optString("type") == "recall_insight") {
-                impacted.add(item.optString("id"))
-            }
+        if (ids.isEmpty()) return
+        for (i in 0 until entries.length()) {
+            val item = entries.getJSONObject(i)
+            if (item.optString("type") == "recall_insight" &&
+                item.optString("source_event_id") in ids
+            ) ids.add(item.optString("id"))
         }
-        for (i in 0 until list.length()) {
-            val item = list.getJSONObject(i)
-            if (item.optString("id") in impacted && !item.optBoolean("deleted")) {
+        val retained = JSONArray()
+        for (i in 0 until entries.length()) {
+            val item = entries.getJSONObject(i)
+            if (item.optString("id") !in ids) {
+                retained.put(item)
+            } else if (item.optBoolean("synced")) {
                 item.put("deleted", true)
-                item.put("delete_requested_at", OffsetDateTime.now().toString())
-                item.remove("deletion_synced")
+                retained.put(item)
             }
+            // If unsynced, the actual local event is removed now, not tagged or uploaded.
         }
+        root.put("events", retained)
         changedRecall()
     }
 
-    @Synchronized fun undoDeleteRecord(eventId: String) {
-        val list = root.optJSONArray("events") ?: return
-        for (i in 0 until list.length()) {
-            val item = list.getJSONObject(i)
-            if (item.optString("id") == eventId &&
-                item.optBoolean("deleted") && !item.optBoolean("deletion_synced")
-            ) {
-                item.remove("deleted")
-                item.remove("delete_requested_at")
-                changedRecall()
-                return
-            }
-        }
-    }
-
-    /** Pending deletion work is kept until the cloud tombstone AND JSONL pruning succeed. */
+    /** Local retry queue only; there is no remote tombstone or second cloud collection. */
     @Synchronized fun pendingDeletions(): List<JSONObject> {
         val list = root.optJSONArray("events") ?: return emptyList()
         return (0 until list.length())
@@ -224,52 +217,29 @@ internal class ListeningStore(
             .filter {
                 it.optBoolean("deleted") &&
                     it.optBoolean("synced") &&
-                    !it.optBoolean("deletion_synced") &&
                     it.optString("type") in setOf("recall_checked", "recall_insight")
             }.map { JSONObject(it.toString()) }
     }
 
     @Synchronized fun markDeletionsSynced(ids: Set<String>) {
         val list = root.optJSONArray("events") ?: return
-        val remaining = JSONArray()
+        val retained = JSONArray()
         for (i in 0 until list.length()) {
             val item = list.getJSONObject(i)
-            // Current GitHub files were pruned and a remote tombstone was written.
-            if (item.optString("id") !in ids || !item.optBoolean("deleted")) remaining.put(item)
+            if (item.optString("id") !in ids || !item.optBoolean("deleted")) retained.put(item)
         }
-        root.put("events", remaining)
+        root.put("events", retained)
         changedRecall()
     }
 
-    /** A deleted never-uploaded typo has no remote record to remove. */
-    @Synchronized fun purgeDeletedLocalDrafts() {
-        val list = root.optJSONArray("events") ?: return
-        val remaining = JSONArray()
-        for (i in 0 until list.length()) {
-            val item = list.getJSONObject(i)
-            if (!(item.optBoolean("deleted") && !item.optBoolean("synced"))) remaining.put(item)
-        }
-        if (remaining.length() == list.length()) return
-        root.put("events", remaining)
-        changedRecall()
-    }
-
-    /** Import cloud history for on-device management, never overwrite locally edited states. */
-    @Synchronized fun importCloudReviewHistory(remote: List<JSONObject>, tombstones: Set<String>) {
+    /** Import remote history without re-adding records waiting for a cloud delete. */
+    @Synchronized fun importCloudReviewHistory(remote: List<JSONObject>) {
         val list = root.optJSONArray("events") ?: JSONArray().also { root.put("events", it) }
-        val existing = (0 until list.length()).map { list.getJSONObject(it) }
-        val byId = existing.associateBy { it.optString("id") }
+        val ids = (0 until list.length()).map { list.getJSONObject(it).optString("id") }.toMutableSet()
         var changed = false
-        for (item in existing) {
-            if (item.optString("id") in tombstones && !item.optBoolean("deleted")) {
-                item.put("deleted", true)
-                item.put("deletion_synced", true)
-                changed = true
-            }
-        }
         for (raw in remote.take(15_000)) {
             val id = raw.optString("id")
-            if (id.isBlank() || id in tombstones || byId.containsKey(id) ||
+            if (id.isBlank() || id in ids ||
                 raw.optString("type") !in setOf("recall_checked", "recall_insight")
             ) continue
             list.put(
@@ -277,6 +247,7 @@ internal class ListeningStore(
                     .put("synced", true)
                     .put("cloud_imported", true),
             )
+            ids.add(id)
             changed = true
         }
         if (changed) changedRecall()
@@ -320,7 +291,7 @@ internal class ListeningStore(
     /**
      * One-tap curation of a single error from an attempted sentence.
      * The underlying recall_checked event stays untouched and remains eligible for upload.
-     * Tapping again undoes only a not-yet-uploaded insight; uploaded Git history is immutable.
+     * Tapping again removes an insight locally; uploaded insights are queued for a direct GitHub file edit.
      */
     @Synchronized fun toggleBookmarkedError(sourceEventId: String, selectedError: String) {
         val events = root.optJSONArray("events") ?: return
@@ -339,17 +310,9 @@ internal class ListeningStore(
                 insight.optString("source_event_id") == sourceEventId &&
                 insight.optString("selected_error").equals(chosen, ignoreCase = true)
             ) {
-                if (insight.optBoolean("deleted") && !insight.optBoolean("deletion_synced")) {
-                    insight.remove("deleted")
-                    insight.remove("delete_requested_at")
-                    changedRecall()
-                    return
-                }
                 if (insight.optBoolean("deleted")) continue
                 if (insight.optBoolean("synced")) {
                     insight.put("deleted", true)
-                    insight.put("delete_requested_at", OffsetDateTime.now().toString())
-                    insight.remove("deletion_synced")
                     changedRecall()
                     return
                 }
