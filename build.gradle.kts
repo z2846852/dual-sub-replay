@@ -15,4 +15,4 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose") version "2.4.21" apply false
 }
 
-apply(from = "quality.gradle.kts")
+

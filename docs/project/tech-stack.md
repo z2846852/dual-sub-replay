@@ -1,15 +1,13 @@
 # Technical context
 
-This is a source map and explanation of architectural boundaries. [AGENTS.md](../../AGENTS.md)
-contains operational commands and contributor rules. Follow source/build files if a
-version snapshot here drifts, and update relevant documentation with lasting changes.
+This document is a historical source map for the upstream code. It describes existing architecture and reasons behind past designs; it is **not a mandatory coding-agent policy** for this personal fork. Current source, actual tests, the personal workflow in README, and the owner's latest explicit choices take precedence. In particular, old PR, style, release, and speculative feature restrictions here do not mandate branches or review.
 
 ## Stack and authoritative configuration
 
 | Area | Current context | Source of truth |
 | --- | --- | --- |
 | Android application | `:app`, `com.kienhoang.dualsubreplay`; min SDK 26, compile SDK 37, target SDK 36 | [App build](../../app/build.gradle.kts) |
-| Language/build | Kotlin and AGP (versions in the root build, raised monthly by Dependabot), JDK 17; committed Gradle wrapper | [Root build](../../build.gradle.kts), [wrapper](../../gradle/wrapper/gradle-wrapper.properties), [CI](../../.github/workflows/android.yml) |
+| Language/build | Kotlin and AGP (versions in the root build, updated when needed), JDK 17; committed Gradle wrapper | [Root build](../../build.gradle.kts), [wrapper](../../gradle/wrapper/gradle-wrapper.properties), [CI](../../.github/workflows/android.yml) |
 | UI | Jetpack Compose / Material 3; Compose BOM (version in the app build) | [App dependencies](../../app/build.gradle.kts) |
 | Translation/network | ML Kit Translate 17.0.3, OkHttp, Kotlin coroutines | [App dependencies](../../app/build.gradle.kts) |
 | Japanese words | Kuromoji 0.9.0 (Apache-2.0, pure Java); its 13 MB IPADIC dictionary downloads on first Japanese use | [App dependencies](../../app/build.gradle.kts), [spec](../specs/2026-09-29-word-audio-jump-back-japanese-words.md) |
@@ -19,7 +17,7 @@ version snapshot here drifts, and update relevant documentation with lasting cha
 | Media controls | `androidx.media` 1.7.1 media session and notification (no player library) | [App dependencies](../../app/build.gradle.kts) |
 | Tests | JUnit4 4.13.2; Compose/Android instrumentation, API 36 AOSP x86_64 managed Pixel 2 | [App test configuration](../../app/build.gradle.kts) |
 | Performance | Separate test-only `:benchmark` module, Macrobenchmark and app Baseline Profile | [Benchmark build](../../benchmark/build.gradle.kts), [methodology](../quality-and-performance.md) |
-| Website | Static English/Vietnamese landing page in `site/`, published to GitHub Pages from `main`; offline checks in `tools/tests/test_site.py` | [Pages workflow](../../.github/workflows/pages.yml), [discoverability](../promotion/discoverability.md) |
+| Website | Static English/Vietnamese landing page in `site/`, original upstream site, not automatically published by this personal fork; legacy checks in `tools/tests/test_site.py` | [Pages workflow](../../.github/workflows/pages.yml), [discoverability](../promotion/discoverability.md) |
 
 ## Component boundaries
 
@@ -217,6 +215,9 @@ Paths below are relative to
 
 ## Architecture invariants
 
+The sections below explain the original design and possible regressions. They are **reference material, not agent instructions or required gates**. The personal fork owner may change them to meet actual needs; retain only compatibility, privacy and security boundaries that are technically necessary.
+
+
 Tests enforce most of these. [AGENTS.md](../../AGENTS.md#architecture-rules) keeps one line per
 area with the rules that must never break; this section holds the details. Specs in
 [docs/specs](../specs/README.md) are dated records of each change, so an older spec can be
@@ -297,6 +298,9 @@ matching part here in the same PR when a change moves one of these rules.
   not change Gradle version constants or release reservations. See [releasing](../releasing.md).
 
 ## Validation and delivery boundaries
+
+For this fork, current validation is voluntary and PR-independent. The only automatic production publisher is `personal-fast-apk.yml` on `main` (details in [`docs/releasing.md`](../releasing.md)). The original PR and preview-release criteria below are historical context only.
+
 
 Plain JUnit4 tests exercise small `internal` functions without Robolectric or mocking
 libraries. Android framework calls return defaults in local unit tests, so these

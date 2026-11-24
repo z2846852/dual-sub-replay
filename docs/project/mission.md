@@ -1,37 +1,13 @@
-# Project mission
+# Replay 个人版的当前目标
 
-DualSub Replay helps Android users learn languages through YouTube: read original
-and translated subtitles together, tap a sentence to replay it, and save words and
-context for later practice. See the [product guide](../../README.md) for features.
+本仓库以英语学习为主：YouTube 双语字幕、翻译、逐句重播、离线故事、逐句复述、错误词提示、词汇长期记忆和日常学习数据复盘。其他上游功能默认保留，仓库所有者明确要求修改时再调整。
 
-## Product principles
+## 开发习惯
 
-- Keep YouTube playback, captions, and replay reliable. The learning controls build
-  on the existing YouTube page; this is a language-learning app, not a project to
-  replace YouTube's general browsing/player experience.
-- Keep study data local and on-device translation always available with downloadable
-  ML Kit models. No project-operated backend, application account, or user-provided API
-  key is required. Avoid adding unnecessary service dependencies. The owner approved one
-  exception on 2026-10-05: the app translates with Google Translate (online) by
-  default for better quality, with a setting to translate on the device instead, and it
-  offers on-device again when Google fails.
-  On 2026-10-08 the owner approved a second, optional exception: the AI
-  assistant uses a key the user brings from the AI service of their choice. It is on by
-  default but sends nothing until a key is added, can be turned off completely, and every
-  other feature keeps working without it. The project still runs no server and holds no
-  shared key.
-- Be precise about privacy: YouTube browsing/captions and model downloads use the
-  network; speech engines may use online voices; AI assistant questions go to the
-  service whose key the user added. On-device translation does not
-  make the entire app offline or prevent Android backup of local study data.
-- Preserve existing users' vocabulary, review progress, settings, and migrations.
-  Keep production signing continuity so official releases can update installed apps.
-- Prioritize readable subtitles, accessible controls, useful error recovery, and
-  mobile usability in portrait, landscape, and fullscreen.
-- Prefer focused improvements over architecture complexity. Preserve the
-  [technical invariants](tech-stack.md#architecture-invariants) when extending learning features.
+- 唯一默认开发分支为 `main`，改完直接提交，自动运行 Personal Fast APK 并生成安装包。
+- 不设强制 PR、代码风格门禁、功能规格模板、人工合并审核或原作者发布审批。
+- 代码方案根据个人实际体验迭代，不为了原作者的路线图或多语言/宣传目标引入额外流程。
+- 保持个人学习数据、GitHub PAT 与必要的 APK 完整性检查安全可靠。
+- 上游技术文档和历史设计可供参考，但不是个人 Fork 的强制约束。
 
-These principles summarize the current README, [roadmap](../../ROADMAP.md), and
-implementation; they do not promise new features. ROADMAP.md remains the sole
-directional roadmap. Record a specific change in a [feature spec](../specs/README.md)
-and update this document only when an authorized decision changes lasting intent.
+详见 [README](../../README.md) 和 [实际发布路径](../releasing.md)。

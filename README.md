@@ -1,7 +1,7 @@
 # 双语字幕与离线英语听力（DualSub Replay 中文自用版）
 
 [![Android](https://img.shields.io/badge/Android-8.0%2B-3ddc84?logo=android&logoColor=white)](https://developer.android.com/)
-[![构建检查](https://github.com/z2846852/dual-sub-replay/actions/workflows/android.yml/badge.svg)](https://github.com/z2846852/dual-sub-replay/actions/workflows/android.yml)
+[![个人版构建](https://github.com/z2846852/dual-sub-replay/actions/workflows/personal-fast-apk.yml/badge.svg)](https://github.com/z2846852/dual-sub-replay/actions/workflows/personal-fast-apk.yml)
 [![开源许可证](https://img.shields.io/badge/源码-MIT-blue)](LICENSE)
 [![原始项目](https://img.shields.io/badge/基于-DualSub%20Replay-6c757d)](https://github.com/hoangkien1703/dual-sub-replay)
 [![原项目贡献者：9 人](https://img.shields.io/badge/all_contributors-9-orange.svg)](CONTRIBUTORS.md)
@@ -38,7 +38,7 @@
 3. 下载并安装 `DualSub-Replay.apk`，系统可能要求一次「允许安装未知应用」。
 4. 今后进入 App 的「检查更新」，即可从**本 Fork** 下载、校验并安装新版。适用时优先使用小差分包，否则完整下载 APK。
 
-质量检查：[Android build and releases](https://github.com/z2846852/dual-sub-replay/actions/workflows/android.yml)，包含格式检查、单元测试和模拟器测试；与快速 APK 工作流分开运行。不要将“快速 APK 已成功”误解成“完整 CI 已通过”。
+按需验证：[Android verification（手动运行）](https://github.com/z2846852/dual-sub-replay/actions/workflows/android.yml)，用于单元测试、Android Lint、Debug 编译，并可选模拟器测试。不强制执行代码格式检查，也不阻断个人版快速出包。快速 APK 成功不等于已通过真机测试。
 
 **当前状态由实时 Actions / Releases 为准。** 源码已提交不等于生成了 APK，更不等于真机测试通过。正式个人版的包名为 `com.z2846852.dualsubreplay`，可与原作者的独立安装，不能直接覆盖其安装或自动迁移应用数据。
 
@@ -185,6 +185,11 @@
 
 ## 开发与构建
 
+**个人仓库的唯一日常开发分支是 `main`。** 修改直接提交到 `main`，由 [Personal Fast APK](https://github.com/z2846852/dual-sub-replay/actions/workflows/personal-fast-apk.yml) 自动构建、校验签名、生成差分补丁并发布正式个人版。无需功能分支、PR、预览包、格式门禁、发布标签或额外审批。仅当仓库所有者明确要求时，才使用其他分支或 PR。开发者可按需手动运行 Android 测试。已废弃上游自动发布脚本的 PR 合并规则，不再作为本 Fork 的开发要求。
+
+保留必要的事实性约束：不可泄露 PAT/密钥或覆盖用户数据；更新 APK 必须通过包名、版本、签名和完整性校验；保留 MIT 及第三方许可声明。这些不是代码格式要求。
+
+
 项目主要使用 **Kotlin、Jetpack Compose、Android SDK 和 Gradle**。编译环境以仓库中实际的 Gradle 配置和 GitHub Actions 工作流为准。
 
 本地常见命令：
@@ -205,13 +210,13 @@ Windows 环境可将 `./gradlew` 替换为 `gradlew.bat`。未经编译验证的
 | `app/src/main/java/com/kienhoang/dualsubreplay/listening/ListeningGitHub.kt` | PAT 加密、每日首次同步、手动同步 |
 | `app/src/main/java/com/kienhoang/dualsubreplay/listening/ListeningSpeechService.kt` | 本地英语 TTS 后台朗读 |
 | `app/src/main/java/com/kienhoang/dualsubreplay/listening/Fsrs6.kt` | FSRS-6 风格的记忆状态与复习计算 |
-| `.github/workflows/android.yml` | Android 自动检查与测试 APK 构建 |
+| `.github/workflows/android.yml` | 可手动触发的单元测试、Lint 与可选模拟器检查 |
 
 更多原始项目说明保留在 `docs/` 下；其中部分原始技术文档仍为英文，不应误认为已经全部翻译。
 
 ## 已知限制与待办
 
-1. 首次 Android 构建、Kotlin 测试、真机背景 TTS 与通知控制仍需完成验证。
+1. 新修改仍需根据实际构建和真机结果验证，不能把源码提交等同于 APK 已安装且工作正常。
 2. GitHub Actions 必须在 Fork 中实际启用后才会运行；单纯合并代码不能证明 APK 可用。
 3. 自动生成新对话和深度专项例句尚未接入 App 内在线 AI；目前通过私人仓库预先分发。
 4. 自建 FSRS 调度实现仍需对照成熟实现验证数值与边界条件。
