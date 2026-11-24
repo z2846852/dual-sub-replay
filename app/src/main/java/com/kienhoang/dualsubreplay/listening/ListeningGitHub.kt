@@ -177,8 +177,13 @@ internal class ListeningGitHub(
 
     private fun pushPending(token: String, approvedEventIds: Set<String>): Int {
         val pending = store.pendingEvents().filter { ListeningSyncPolicy.approved(it.getString("id"), approvedEventIds) }
+        val raw = pending.filter { it.optString("type") == "raw_note" }
+        for (note in raw) {
+            pushRawNote(token, note)
+            store.markUploaded(setOf(note.getString("id")))
+        }
         val grouped =
-            pending.groupBy { e ->
+            pending.filter { it.optString("type") != "raw_note" }.groupBy { e ->
                 val month = e.getString("created_at").substring(0, 7)
                 check(month.matches(Regex("\\d{4}-\\d{2}")))
                 val stream = ListeningSyncPolicy.remoteCollection(e.optString("type"))
@@ -223,6 +228,63 @@ internal class ListeningGitHub(
     }
 
 
+
+    /** Mirror MyWork Raw: one unprocessed user note per stable UUID, no rewriting its words. */
+    private fun pushRawNote(token: String, event: JSONObject) {
+        val id = event.getString("id")
+        val day = event.getString("created_at").take(10)
+        require(id.matches(Regex("[0-9a-fA-F-]{36}")) &&
+            day.matches(Regex("\\d{4}-\\d{2}-\\d{2}"))) { "Raw ID / 日期无效" }
+        val path = "data/raw_inbox/$day/$id.json"
+        val original = event.getString("text")
+        require(original.isNotBlank() && original.length <= 5000)
+        val existing = getFile(token, path)
+        if (existing != null) {
+            val saved = JSONObject(existing.first)
+            check(saved.optString("id") == id && saved.optString("text") == original) {
+                "云端 Raw 同 ID 但正文不同，拒绝覆盖"
+            }
+            return
+        }
+        val body = JSONObject()
+            .put("message", "raw: preserve unprocessed English reflection " + id.take(8))
+            .put("branch", "main")
+            .put("content", Base64.encodeToString(
+                event.toString(2).toByteArray(Charsets.UTF_8), Base64.NO_WRAP,
+            ))
+        try {
+            request("PUT", base + "/contents/" + path, token, body.toString())
+        } catch (error: GitHubHttpException) {
+            if (error.status !in listOf(409, 422)) throw error
+            val saved = getFile(token, path)?.first?.let(::JSONObject) ?: throw error
+            if (saved.optString("id") != id || saved.optString("text") != original) throw error
+        }
+    }
+
+    private fun removeRawNote(token: String, item: JSONObject) {
+        val id = item.getString("id")
+        val day = item.getString("created_at").take(10)
+        require(id.matches(Regex("[0-9a-fA-F-]{36}")) &&
+            day.matches(Regex("\\d{4}-\\d{2}-\\d{2}")))
+        val path = "data/raw_inbox/$day/$id.json"
+        for (attempt in 1..4) {
+            val current = getFile(token, path) ?: return
+            check(JSONObject(current.first).optString("id") == id) {
+                "云端 Raw ID 不匹配，拒绝删除"
+            }
+            val payload = JSONObject()
+                .put("message", "Delete selected raw reflection " + id.take(8))
+                .put("branch", "main")
+                .put("sha", current.second)
+            try {
+                request("DELETE", base + "/contents/" + path, token, payload.toString())
+                return
+            } catch (error: GitHubHttpException) {
+                if (error.status !in listOf(409, 412, 422) || attempt == 4) throw error
+            }
+        }
+    }
+
     /**
      * One local record maps to one ID in english/main's monthly JSONL.
      * Remove that ID directly using GitHub Contents API with its SHA precondition.
@@ -230,8 +292,13 @@ internal class ListeningGitHub(
      * Retry conflicts but never create cloud tombstones or audit collections.
      */
     private fun pushDeletions(token: String, approvedIds: Set<String>): Int {
-        val grouped = store.pendingDeletions()
-            .filter { it.optString("id") in approvedIds }
+        val approved = store.pendingDeletions().filter { it.optString("id") in approvedIds }
+        val raw = approved.filter { it.optString("type") == "raw_note" }
+        for (item in raw) {
+            removeRawNote(token, item)
+            store.markDeletionsSynced(setOf(item.getString("id")))
+        }
+        val grouped = approved.filter { it.optString("type") != "raw_note" }
             .groupBy { item ->
                 val device = item.optString("device_id")
                 val month = ListeningSyncPolicy.eventMonth(item.optString("created_at"))
@@ -240,7 +307,7 @@ internal class ListeningGitHub(
                 }
                 Triple(device, month, ListeningSyncPolicy.remoteCollection(item.optString("type")))
             }
-        var completed = 0
+        var completed = raw.size
         for ((key, records) in grouped) {
             val (device, month, collection) = key
             val ids = records.map { it.getString("id") }.toSet()

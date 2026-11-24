@@ -84,6 +84,7 @@ internal fun ListeningUploadReviewDialog(
     val nSynced = records.count { it.optBoolean("synced") && !it.optBoolean("deleted") }
     val nRaw = records.count { it.optString("type") == "recall_checked" && !it.optBoolean("deleted") }
     val nCurated = records.count { it.optString("type") == "recall_insight" && !it.optBoolean("deleted") }
+    val nRawNotes = records.count { it.optString("type") == "raw_note" && !it.optBoolean("deleted") }
 
     AlertDialog(
         onDismissRequest = { if (!busy) onDismiss() },
@@ -92,7 +93,7 @@ internal fun ListeningUploadReviewDialog(
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(
                     "原始复述 " + nRaw + " · 已传 " + nSynced +
-                        " · 重点 " + nCurated + " · 待删 " + pendingDeleteCount,
+                        " · 重点 " + nCurated + " · Raw " + nRawNotes + " · 待删 " + pendingDeleteCount,
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.SemiBold,
                 )
@@ -221,8 +222,10 @@ private fun ReviewAttemptRow(
     val type = event.optString("type")
     val deleted = event.optBoolean("deleted")
     val uploaded = event.optBoolean("synced")
-    val source = event.optString("checked_input").ifBlank { event.optString("observed") }
+    val source = if (type == "raw_note") event.optString("text") else
+        event.optString("checked_input").ifBlank { event.optString("observed") }
     val title = when {
+        type == "raw_note" -> "✎ 自由表达"
         type == "recall_insight" -> "★ 重点收藏"
         type == "recall_checked" && event.optBoolean("passed") -> "✓ 通过"
         type == "recall_checked" -> "✕ 未通过"
@@ -272,7 +275,7 @@ private fun ReviewAttemptRow(
                     Text(if (event.optString("review_label") == "typo") "✓ 笔误" else "标笔误")
                 }
             }
-            if (!deleted && type in setOf("recall_checked", "recall_insight")) {
+            if (!deleted && type in setOf("recall_checked", "recall_insight", "raw_note")) {
                 TextButton(onClick = { onDelete(id) }, enabled = !busy) {
                     Text("删除", color = MaterialTheme.colorScheme.error)
                 }

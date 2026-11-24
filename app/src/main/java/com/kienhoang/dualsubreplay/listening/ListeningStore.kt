@@ -176,7 +176,7 @@ internal class ListeningStore(
         val list = root.optJSONArray("events") ?: return emptyList()
         return (0 until list.length())
             .map { list.getJSONObject(it) }
-            .filter { !it.optBoolean("deleted") && it.optString("type") in setOf("recall_checked", "recall_insight") }
+            .filter { !it.optBoolean("deleted") && it.optString("type") in setOf("recall_checked", "recall_insight", "raw_note") }
             .map { JSONObject(it.toString()) }
     }
 
@@ -192,7 +192,7 @@ internal class ListeningStore(
         for (i in 0 until entries.length()) {
             val item = entries.getJSONObject(i)
             if (item.optString("id") == eventId &&
-                item.optString("type") in setOf("recall_checked", "recall_insight")
+                item.optString("type") in setOf("recall_checked", "recall_insight", "raw_note")
             ) ids.add(eventId)
         }
         if (ids.isEmpty()) return
@@ -271,7 +271,7 @@ internal class ListeningStore(
             .filter {
                 it.optBoolean("deleted") &&
                     it.optBoolean("synced") &&
-                    it.optString("type") in setOf("recall_checked", "recall_insight")
+                    it.optString("type") in setOf("recall_checked", "recall_insight", "raw_note")
             }.map { JSONObject(it.toString()) }
     }
 
