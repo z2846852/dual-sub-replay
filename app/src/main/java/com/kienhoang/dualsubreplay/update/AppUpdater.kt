@@ -650,6 +650,11 @@ internal object AppUpdater {
                 Toast.makeText(context, "当前安装包不支持差分，改用完整包", Toast.LENGTH_LONG).show()
                 return null
             }
+            if (patch.fromSha256 != null && sha256Of(File(installed.sourceDir)) != patch.fromSha256) {
+                ProblemLog.record(ProblemArea.APP_UPDATE, "PATCH_SOURCE_HASH_MISMATCH")
+                Toast.makeText(context, "当前 APK 与差分基线不一致，改用完整包", Toast.LENGTH_LONG).show()
+                return null
+            }
             if (downloadWithRetries(update, patchFile, patch.downloadUrl, patch.sizeBytes) != patch.sha256) {
                 throw IOException("The patch's SHA-256 does not match")
             }
