@@ -302,6 +302,72 @@ internal class ListeningGitHub(
             ?.filter { it.isNotBlank() }
             ?.toSet() ?: emptySet()
 
+
+    /** Load historical synced attempts and deletion markers into the local review list. */
+    suspend fun refreshCloudReviewHistory(): String =
+        mutex.withLock {
+            withContext(Dispatchers.IO) {
+                try {
+                    val token = vault.read() ?: return@withContext "未连接 GitHub"
+                    _status.value = "正在读取 GitHub 历史记录…"
+                    val removed = HashSet<String>()
+                    val attempts = ArrayList<JSONObject>()
+                    for (stream in listOf("deletions", "events", "insights")) {
+                        val devices = listChildren(token, "data/$stream")
+                            .filter { it.first == "dir" && ListeningSyncPolicy.validDeviceId(it.second) }
+                            .take(20)
+                        for ((_, device) in devices) {
+                            val months = listChildren(token, "data/$stream/$device")
+                                .filter { it.first == "file" && it.second.matches(Regex("\\d{4}-\\d{2}\\.jsonl")) }
+                                .take(48)
+                            for ((_, filename) in months) {
+                                val raw = getFile(token, "data/$stream/$device/$filename")?.first ?: continue
+                                for (line in raw.lineSequence().filter { it.isNotBlank() }) {
+                                    val item = runCatching { JSONObject(line) }.getOrNull() ?: continue
+                                    if (stream == "deletions") {
+                                        val id = item.optString("target_event_id")
+                                        if (id.isNotBlank()) removed.add(id)
+                                    } else if (
+                                        item.optString("type") in setOf("recall_checked", "recall_insight") &&
+                                        item.optString("device_id") == device &&
+                                        item.optString("id").isNotBlank() &&
+                                        attempts.size < 15_000
+                                    ) {
+                                        attempts.add(item)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    store.importCloudReviewHistory(attempts, removed)
+                    val msg = "已加载 " + attempts.size + " 条云端历史，可逐条审查、删除或收藏"
+                    _status.value = msg
+                    msg
+                } catch (e: Exception) {
+                    val msg = "读取历史失败：" + safeError(e)
+                    _status.value = msg
+                    msg
+                }
+            }
+        }
+
+    private fun listChildren(token: String, path: String): List<Pair<String, String>> {
+        val raw =
+            try {
+                request("GET", "$base/contents/$path?ref=main", token)
+            } catch (e: GitHubHttpException) {
+                if (e.status == 404) return emptyList()
+                throw e
+            }
+        val entries = JSONArray(raw)
+        return (0 until minOf(entries.length(), 1000)).mapNotNull { i ->
+            val item = entries.optJSONObject(i) ?: return@mapNotNull null
+            val kind = item.optString("type")
+            val name = item.optString("name")
+            if (kind !in setOf("dir", "file") || name.isBlank()) null else kind to name
+        }
+    }
+
     /**
      * Store a device-specific checkpoint. One checkpoint per device keeps concurrent phones from
      * overwriting each other's data. This is a backup, not a claim of precise cross-device merging.
