@@ -4,6 +4,7 @@ import android.view.View
 import com.kienhoang.dualsubreplay.assistant.AiSetting
 import com.kienhoang.dualsubreplay.assistant.aiSettingsInBuild
 import com.kienhoang.dualsubreplay.data.IS_PLAY_BUILD
+import com.kienhoang.dualsubreplay.data.FORK_APPLICATION_ID
 import com.kienhoang.dualsubreplay.data.MAX_REPORTED_ANSWER_CHARS
 import com.kienhoang.dualsubreplay.data.UpdateChannel
 import com.kienhoang.dualsubreplay.data.aiAnswerReportBody
@@ -27,7 +28,7 @@ class PlayBuildTest {
         val channel = updateChannelFor("com.kienhoang.dualsubreplay", debuggable = false, versionName = "1.9.16", playStore = true)
         assertEquals(UpdateChannel.GooglePlay, channel)
         assertFalse(canUpdateItself(channel))
-        assertEquals(UpdateChannel.Official, updateChannelFor("com.kienhoang.dualsubreplay", false, "1.9.16", playStore = false))
+        assertEquals(UpdateChannel.Official, updateChannelFor(FORK_APPLICATION_ID, false, "1.9.16", playStore = false))
     }
 
     @Test

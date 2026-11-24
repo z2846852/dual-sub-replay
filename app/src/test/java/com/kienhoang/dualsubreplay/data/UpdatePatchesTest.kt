@@ -94,6 +94,7 @@ class UpdatePatchesTest {
                 "$UPDATE_RELEASES_PAGE_URL/download/v1.8.26/update-from-v1.8.25.patch",
                 hash,
                 2_600_000,
+                "c".repeat(64),
             ),
             update.patch,
         )
@@ -139,10 +140,10 @@ class UpdatePatchesTest {
         // An Intel Chromebook with ARM translation lists ARM after x86.
         assertTrue(canRunReleaseApk(listOf("x86_64", "x86", "arm64-v8a", "armeabi-v7a")))
         assertFalse(canRunReleaseApk(listOf("x86_64", "x86")))
-        assertEquals(UpdateChannel.UnsupportedDevice, updateChannelFor("com.kienhoang.dualsubreplay", false, "1.8.26", listOf("x86_64")))
+        assertEquals(UpdateChannel.UnsupportedDevice, updateChannelFor(FORK_APPLICATION_ID, false, "1.8.26", listOf("x86_64")))
         assertEquals(
             UpdateChannel.Official,
-            updateChannelFor("com.kienhoang.dualsubreplay", false, "1.8.26", listOf("x86_64", "arm64-v8a")),
+            updateChannelFor(FORK_APPLICATION_ID, false, "1.8.26", listOf("x86_64", "arm64-v8a")),
         )
         // Preview builds keep every ABI.
         assertEquals(

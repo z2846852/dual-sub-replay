@@ -8,6 +8,9 @@ import android.content.pm.PackageInstaller
 import android.content.pm.PackageManager
 import android.net.ConnectivityManager
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
+import android.widget.Toast
 import androidx.annotation.VisibleForTesting
 import androidx.core.content.IntentCompat
 import androidx.core.content.pm.PackageInfoCompat
@@ -188,6 +191,15 @@ internal object AppUpdater {
     /** Device tests show a dialog state without asking GitHub. */
     @VisibleForTesting
     fun showForTest(shown: UpdateState) {
+        mutableOneTapFlow.value = false
+        mutableState.value = shown
+        mutableDialogVisible.value = true
+    }
+
+    /** UI test of the user-initiated update screen, without network traffic or installing an APK. */
+    @VisibleForTesting
+    fun showOneTapForTest(shown: UpdateState) {
+        mutableOneTapFlow.value = true
         mutableState.value = shown
         mutableDialogVisible.value = true
     }
@@ -635,7 +647,16 @@ internal object AppUpdater {
         return try {
             val installed = context.applicationInfo
             // An app installed in parts has no single APK to start from.
-            if (!installed.splitSourceDirs.isNullOrEmpty()) return null
+            if (!installed.splitSourceDirs.isNullOrEmpty()) {
+                ProblemLog.record(ProblemArea.APP_UPDATE, "PATCH_UNAVAILABLE_SPLIT_APK")
+                showUpdateToast(context, "当前安装包不支持差分，改用完整包")
+                return null
+            }
+            if (patch.fromSha256 != null && sha256Of(File(installed.sourceDir)) != patch.fromSha256) {
+                ProblemLog.record(ProblemArea.APP_UPDATE, "PATCH_SOURCE_HASH_MISMATCH")
+                showUpdateToast(context, "当前 APK 与差分基线不一致，改用完整包")
+                return null
+            }
             if (downloadWithRetries(update, patchFile, patch.downloadUrl, patch.sizeBytes) != patch.sha256) {
                 throw IOException("The patch's SHA-256 does not match")
             }
@@ -646,13 +667,27 @@ internal object AppUpdater {
             val apk = File(folder, UPDATE_APK)
             if (!patched.renameTo(apk)) throw IOException("Could not keep the patched APK")
             apk
-        } catch (_: IOException) {
-            // Kept in the problem log; the whole download follows.
-            ProblemLog.record(ProblemArea.APP_UPDATE, "PATCH_FAILED")
+        } catch (error: IOException) {
+            // Preserve the actual failure reason instead of hiding every mismatch as PATCH_FAILED.
+            val reason = when {
+                error.message?.contains("starts from another APK") == true -> "旧 APK 与差分包基线不一致"
+                error.message?.contains("SHA-256") == true -> "差分包校验失败"
+                error.message?.contains("patched APK") == true -> "差分重建校验失败"
+                else -> "差分失败：${error.javaClass.simpleName}"
+            }
+            ProblemLog.record(ProblemArea.APP_UPDATE, "PATCH_FAILED_${error.javaClass.simpleName}_${error.message.orEmpty().take(80)}")
+            showUpdateToast(context, "$reason，自动改用完整包")
             null
         } finally {
             patchFile.delete()
             patched.delete()
+        }
+    }
+
+    /** Downloader runs on Dispatchers.IO; Android toast UI must be dispatched to the main thread. */
+    private fun showUpdateToast(context: Context, message: String) {
+        Handler(Looper.getMainLooper()).post {
+            Toast.makeText(context.applicationContext, message, Toast.LENGTH_LONG).show()
         }
     }
 

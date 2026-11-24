@@ -1,6 +1,7 @@
 package com.kienhoang.dualsubreplay.ui
 
 import android.text.format.Formatter
+import android.widget.Toast
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -21,6 +22,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -70,9 +72,10 @@ internal fun CheckForUpdatesRow(onOpen: () -> Unit) {
                         openExternalPage(context, PLAY_STORE_PAGE_URL)
                         return@clickable
                     }
-                    AppUpdater.showDialog()
-                    if (state !is UpdateState.Available && state !is UpdateState.Ready && state !is UpdateState.Downloading) {
-                        AppUpdater.check(context)
+                    if (!canUpdateItself(AppUpdater.channel(context))) {
+                        AppUpdater.showDialog()
+                    } else {
+                        AppUpdater.checkAndInstall(context)
                     }
                 }.testTag("check_for_updates")
                 .padding(horizontal = 12.dp, vertical = 6.dp),
@@ -115,6 +118,29 @@ internal fun AppUpdateDialogHost(channel: UpdateChannel = AppUpdater.channel(Loc
     if (!visible) return
     val context = LocalContext.current
     val state by AppUpdater.state.collectAsState()
+    val oneTap by AppUpdater.oneTapFlow.collectAsState()
+    if (oneTap) {
+        LaunchedEffect(state) {
+            val notice =
+                when (val current = state) {
+                    UpdateState.UpToDate -> context.getString(R.string.updates_up_to_date, BuildConfig.VERSION_NAME)
+                    is UpdateState.Failed -> context.getString(current.problem.messageRes)
+                    else -> null
+                }
+            if (notice != null) {
+                Toast.makeText(context, notice, Toast.LENGTH_SHORT).show()
+                AppUpdater.hideDialog()
+            }
+        }
+        AlertDialog(
+            // Hiding progress never cancels an update or asks the user to decide again.
+            onDismissRequest = { AppUpdater.hideDialog() },
+            title = { Text(stringResource(R.string.updates_check)) },
+            text = { OneTapUpdateProgress(state) },
+            confirmButton = {},
+        )
+        return
+    }
     var noBrowser by remember { mutableStateOf(false) }
     val close = { AppUpdater.hideDialog() }
     val open = { url: String -> noBrowser = !openExternalPage(context, url) }
@@ -151,6 +177,20 @@ internal fun AppUpdateDialogHost(channel: UpdateChannel = AppUpdater.channel(Loc
             }
         },
     )
+}
+
+/** No duplicate "Update", "Install", "Not now" or "Cancel" controls in a manual update. */
+@Composable
+private fun OneTapUpdateProgress(current: UpdateState) {
+    when (current) {
+        UpdateState.Idle, UpdateState.Checking -> Busy(stringResource(R.string.updates_checking), null)
+        UpdateState.UpToDate -> UpdateMessage(stringResource(R.string.updates_up_to_date, BuildConfig.VERSION_NAME), false)
+        is UpdateState.Available -> Busy(stringResource(R.string.updates_downloading, current.update.versionName), -1f)
+        is UpdateState.Downloading ->
+            Busy(stringResource(R.string.updates_downloading, current.update.versionName), current.progress ?: -1f)
+        is UpdateState.Ready, is UpdateState.Installing -> Busy(stringResource(R.string.updates_installing), null)
+        is UpdateState.Failed -> UpdateMessage(stringResource(current.problem.messageRes), false)
+    }
 }
 
 @Composable
