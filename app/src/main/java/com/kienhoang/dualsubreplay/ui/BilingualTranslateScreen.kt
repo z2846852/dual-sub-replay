@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -141,7 +142,7 @@ internal fun BilingualTranslateScreen(
                 ) {
                     BilingualTranslatePane(vocabulary, snackbar)
                     HorizontalDivider()
-                    BilingualTranslatePane(vocabulary, snackbar)
+                    BilingualTranslatePane(vocabulary, snackbar, fixedInputHeight = true)
                 }
             }
         }
@@ -154,6 +155,7 @@ internal fun BilingualTranslateScreen(
 private fun BilingualTranslatePane(
     vocabulary: VocabularyRepository,
     snackbar: SnackbarHostState,
+    fixedInputHeight: Boolean = false,
 ) {
     val context = LocalContext.current.applicationContext
     val clipboard = LocalClipboardManager.current
@@ -348,10 +350,12 @@ private fun BilingualTranslatePane(
         OutlinedTextField(
             value = sourceText,
             onValueChange = { editText(it) },
-            modifier = Modifier.fillMaxWidth().testTag("bilingual_translate_input"),
+            modifier = Modifier.fillMaxWidth()
+                .then(if (fixedInputHeight) Modifier.height(180.dp) else Modifier)
+                .testTag("bilingual_translate_input"),
             placeholder = { Text("输入中文或英文，自动翻译…") },
-            minLines = 2,
-            maxLines = 6,
+            minLines = if (fixedInputHeight) 1 else 2,
+            maxLines = if (fixedInputHeight) Int.MAX_VALUE else 6,
             trailingIcon = {
                 if (sourceText.isNotEmpty()) {
                     IconButton(onClick = { editText("") }) {
