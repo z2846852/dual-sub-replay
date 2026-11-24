@@ -25,19 +25,48 @@ internal data class RecallComparison(
 internal object ListeningRecallCheck {
     private val wordPattern = Regex("""[\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*""")
     private val apostrophes = Regex("['’]")
+    private val isContractions =
+        setOf("he", "she", "it", "there", "that", "what", "who", "where", "here", "how", "when", "why")
 
     private data class Word(
         val shown: String,
         val key: String,
     )
 
+    /** Expand common, unambiguous spoken contractions before aligning individual words. */
+    private fun expand(word: Word): List<Word> {
+        val key = word.key
+        val expanded =
+            when {
+                key == "can't" -> listOf("can", "not")
+                key == "won't" -> listOf("will", "not")
+                key == "shan't" -> listOf("shall", "not")
+                key == "cannot" -> listOf("can", "not")
+                key == "let's" -> listOf("let", "us")
+                key == "i'm" -> listOf("i", "am")
+                key.endsWith("n't") -> listOf(key.dropLast(3), "not")
+                key.endsWith("'re") -> listOf(key.dropLast(3), "are")
+                key.endsWith("'ve") -> listOf(key.dropLast(3), "have")
+                key.endsWith("'ll") -> listOf(key.dropLast(3), "will")
+                key.endsWith("'d") -> listOf(key.dropLast(2), "would")
+                key.endsWith("'s") && key.dropLast(2) in isContractions ->
+                    listOf(key.dropLast(2), "is")
+                else -> return listOf(word)
+            }
+        // One physical word can align with two spoken words without showing a duplicate.
+        return expanded.mapIndexed { index, normalized ->
+            Word(if (index == 0) word.shown else "", normalized)
+        }
+    }
+
     private fun words(text: String): List<Word> =
         wordPattern
             .findAll(Normalizer.normalize(text, Normalizer.Form.NFKC))
             .map { match ->
                 val shown = match.value
-                Word(shown, shown.lowercase(Locale.ROOT).replace(apostrophes, ""))
-            }.toList()
+                Word(shown, shown.lowercase(Locale.ROOT).replace(apostrophes, "'"))
+            }.flatMap(::expand)
+            .toList()
 
     fun compare(
         expected: String,

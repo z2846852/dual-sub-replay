@@ -24,3 +24,9 @@ Related: [sentence recall](2026-11-23-offline-listening-sentence-recall.md)
 ## Validation notes
 
 - Pending implementation. Do not mark hardware/input-method behavior validated without a physical device check.
+
+## Owner correction: non-blocking formatting and equivalent contractions
+
+- 2026-11-24: This personal fork does not need a mandatory style-only formatting gate. Android CI still requires Kotlin compilation, complexity analysis, unit tests, Android lint, debug/release builds, and managed-device tests. Only `formatCheck` is removed from the blocking command.
+- Sentence comparison treats common English spoken contractions as their full forms: `there's` = `there is`, `I'm` = `I am`, `you're` = `you are`, `don't` = `do not`, etc., in both directions. Contractions normalize before edit-distance alignment, so a different article or tense still produces an error. Ambiguous possessives (`John's`) are **not** expanded. For ambiguous `'s` and `'d`, the narrow `is` and `would` interpretations apply; this is deliberately not general semantic grading.
+- Unit tests cover both-direction equivalence, apostrophe variants, and actual differing words preserved. No acoustic pronunciation evaluation is implied.

@@ -61,6 +61,37 @@ class ListeningRecallCheckTest {
     }
 
     @Test
+    fun thereIsAndTheresMatchInBothDirections() {
+        assertTrue(ListeningRecallCheck.compare("There is a good coffee shop", "There's a good coffee shop").perfect)
+        assertTrue(ListeningRecallCheck.compare("There's a good coffee shop", "There is a good coffee shop").perfect)
+        assertTrue(ListeningRecallCheck.compare("There’s a good coffee shop", "There is a good coffee shop").perfect)
+    }
+
+    @Test
+    fun commonContractionsMatchExpandedSpeech() {
+        assertTrue(ListeningRecallCheck.compare("I am sure you are right", "I'm sure you're right").perfect)
+        assertTrue(ListeningRecallCheck.compare("We will go if it is ready", "We'll go if it's ready").perfect)
+        assertTrue(ListeningRecallCheck.compare("Do not worry, I cannot stay", "Don't worry I can't stay").perfect)
+        assertTrue(ListeningRecallCheck.compare("I would like to try", "I'd like to try").perfect)
+    }
+
+    @Test
+    fun contractionMatchesDoNotHideOtherWrongWords() {
+        val result = ListeningRecallCheck.compare("There is a coffee shop", "There's the coffee shop")
+        assertFalse(result.perfect)
+        assertEquals(1, result.differences)
+        assertEquals("a", result.words.single { !it.matches }.expected)
+        assertEquals("the", result.words.single { !it.matches }.actual)
+    }
+
+    @Test
+    fun possessionAndTenseAreNotFalselyAccepted() {
+        assertFalse(ListeningRecallCheck.compare("Its door is open", "It's door is open").perfect)
+        assertFalse(ListeningRecallCheck.compare("There was a shop", "There's a shop").perfect)
+        assertFalse(ListeningRecallCheck.compare("He has a car", "He is a car").perfect)
+    }
+
+    @Test
     fun emptyAnswerShowsAllMissing() {
         val result = ListeningRecallCheck.compare("Try again", "")
         assertEquals(2, result.differences)

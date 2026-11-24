@@ -68,7 +68,8 @@ jobs:
         run: |
           set -euo pipefail
           preview_version_code=$(( $(date -u +%s) - 1700000000 ))
-          bash ./gradlew formatCheck complexityCheck testDebugUnitTest lintDebug assembleDebug assembleDebugAndroidTest \
+          # Personal fork: cosmetic formatting is not a build gate; keep functional checks.
+          bash ./gradlew complexityCheck testDebugUnitTest lintDebug assembleDebug assembleDebugAndroidTest \
             -PpreviewVersionCode="$preview_version_code" \
             -PpreviewVersionNameSuffix="-pr${{ github.event.pull_request.number || 'manual' }}-build${GITHUB_RUN_NUMBER}" \
             -PpreviewApplicationIdSuffix="$PREVIEW_SUFFIX" \
