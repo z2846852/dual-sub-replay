@@ -51,7 +51,6 @@ internal fun ListeningUploadReviewDialog(
     onBookmark: (String, String) -> Unit,
     onTypo: (String) -> Unit,
     onDelete: (String) -> Unit,
-    onUndoDelete: (String) -> Unit,
     onRefreshCloud: () -> Unit,
     onConfirmSync: () -> Unit,
     onDismiss: () -> Unit,
@@ -110,7 +109,7 @@ internal fun ListeningUploadReviewDialog(
                 }
                 Text(
                     "点击句子展开尝试；★ 收藏具体错词，笔误可标记或删除。" +
-                        " 已上传的记录删除后需再点同步，Git 旧提交仍可追溯。",
+                        " 删除立即更新本地，并尝试更新 GitHub 当前文件。",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -145,7 +144,6 @@ internal fun ListeningUploadReviewDialog(
                                         onBookmark = onBookmark,
                                         onTypo = onTypo,
                                         onDelete = { confirmDelete = item },
-                                        onUndoDelete = onUndoDelete,
                                     )
                                 }
                             }
@@ -182,10 +180,10 @@ internal fun ListeningUploadReviewDialog(
             title = { Text("确认删除这次练习记录？") },
             text = {
                 Text(if (synced) {
-                    "将先从手机练习列表移除，再在你确认同步时删除 GitHub 当前文件中的这条记录。" +
-                        " Git 提交历史不会被擦除。"
+                    "从手机删除这条记录，同时立即尝试从 GitHub 当前文件删除。" +
+                        " 断网时会在本机等待重试。Git 的旧提交仍可能包含历史内容。"
                 } else {
-                    "这条尚未上传的笔误会从待上传列表移除；同步前可以撤销。"
+                    "立即从本机删除这条未上传的笔误，不再进入上传队列。"
                 })
             },
             confirmButton = {
@@ -209,18 +207,13 @@ private fun ReviewAttemptRow(
     onBookmark: (String, String) -> Unit,
     onTypo: (String) -> Unit,
     onDelete: (String) -> Unit,
-    onUndoDelete: (String) -> Unit,
 ) {
     val id = event.optString("id")
     val type = event.optString("type")
     val deleted = event.optBoolean("deleted")
-    val deletedCloud = event.optBoolean("deletion_synced")
     val uploaded = event.optBoolean("synced")
     val source = event.optString("checked_input").ifBlank { event.optString("observed") }
     val title = when {
-        deletedCloud -> "云端已删除"
-        deleted && uploaded -> "待同步删除"
-        deleted -> "本地已删除"
         type == "recall_insight" -> "★ 重点收藏"
         type == "recall_checked" && event.optBoolean("passed") -> "✓ 通过"
         type == "recall_checked" -> "✕ 未通过"
@@ -270,11 +263,7 @@ private fun ReviewAttemptRow(
                     Text(if (event.optString("review_label") == "typo") "✓ 笔误" else "标笔误")
                 }
             }
-            if (deleted) {
-                if (!deletedCloud) {
-                    TextButton(onClick = { onUndoDelete(id) }, enabled = !busy) { Text("撤销删除") }
-                }
-            } else if (type in setOf("recall_checked", "recall_insight")) {
+            if (!deleted && type in setOf("recall_checked", "recall_insight")) {
                 TextButton(onClick = onDelete, enabled = !busy) {
                     Text("删除", color = MaterialTheme.colorScheme.error)
                 }

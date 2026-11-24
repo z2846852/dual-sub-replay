@@ -639,8 +639,26 @@ internal fun ListeningScreen(
             busy = busy,
             onBookmark = store::toggleBookmarkedError,
             onTypo = store::toggleTypoLabel,
-            onDelete = store::deleteReviewRecord,
-            onUndoDelete = store::undoDeleteRecord,
+            onDelete = { id ->
+                store.deleteReviewRecord(id)
+                val pending = store.pendingDeletions().map { it.getString("id") }.toSet()
+                if (pending.isNotEmpty() && connected && !busy) {
+                    busy = true
+                    scope.launch {
+                        try {
+                            message = github.deletePendingHistoryNow(pending)
+                        } finally {
+                            busy = false
+                        }
+                    }
+                } else {
+                    message = if (pending.isEmpty()) {
+                        "已从本地彻底删除"
+                    } else {
+                        "本地已删除；GitHub 暂未连接，下次同步继续删除云端记录"
+                    }
+                }
+            },
             onRefreshCloud = {
                 if (!busy && connected) {
                     busy = true
@@ -653,9 +671,7 @@ internal fun ListeningScreen(
             onConfirmSync = {
                 val approvedIds = store.pendingEvents().map { it.getString("id") }.toSet()
                 val approvedDeletions = store.pendingDeletions().map { it.getString("id") }.toSet()
-                // Never-uploaded typos can be discarded locally at this confirmed step.
-                store.purgeDeletedLocalDrafts()
-                busy = true
+                 busy = true
                 scope.launch {
                     try {
                         message = github.syncNow(
