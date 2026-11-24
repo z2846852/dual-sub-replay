@@ -114,7 +114,7 @@ internal class ListeningStore(
         var pending = 0
         for (i in 0 until events.length()) {
             val e = events.optJSONObject(i) ?: continue
-            if (!e.optBoolean("synced")) pending++
+            if (!e.optBoolean("synced") && !e.optBoolean("upload_excluded")) pending++
             val word = e.optString("word").lowercase()
             if (e.optString("type") == "saved") savedWords.add(word)
         }
@@ -158,8 +158,67 @@ internal class ListeningStore(
         val list = root.optJSONArray("events") ?: JSONArray()
         return (0 until list.length())
             .map { list.getJSONObject(it) }
-            .filter { !it.optBoolean("synced") }
+            .filter { !it.optBoolean("synced") && !it.optBoolean("upload_excluded") }
             .map(::remoteEvent)
+
+    /** Entries excluded in the preview remain on-device and can be restored before upload. */
+    @Synchronized fun excludedEvents(): List<JSONObject> {
+        val list = root.optJSONArray("events") ?: JSONArray()
+        return (0 until list.length())
+            .map { list.getJSONObject(it) }
+            .filter { !it.optBoolean("synced") && it.optBoolean("upload_excluded") }
+            .map(::remoteEvent)
+    }
+
+    @Synchronized fun setUploadExcluded(id: String, excluded: Boolean) {
+        val events = root.optJSONArray("events") ?: return
+        for (i in 0 until events.length()) {
+            val item = events.getJSONObject(i)
+            if (item.optString("id") == id && !item.optBoolean("synced")) {
+                item.put("upload_excluded", excluded)
+                persist()
+                return
+            }
+        }
+    }
+
+    /**
+     * Deliberate learning insight: separated from automatically captured attempts.
+     * The selected category and annotation are learner-authored, not AI-inferred.
+     */
+    @Synchronized fun saveRecallInsight(
+        pack: ListeningPack,
+        line: ListeningLine,
+        observed: String,
+        category: String,
+        note: String,
+    ) {
+        require(category in setOf("listening", "missing", "preposition", "grammar", "transcription", "other"))
+        val events = root.optJSONArray("events") ?: JSONArray().also { root.put("events", it) }
+        val noteText = note.trim().take(300)
+        val actual = observed.trim().take(500)
+        val previous = recallProgress(pack, line)
+        if ((0 until events.length()).any { index ->
+                val item = events.getJSONObject(index)
+                item.optString("type") == "recall_insight" &&
+                    item.optString("dialogue_id") == pack.id &&
+                    item.optString("line_id") == line.id &&
+                    item.optString("category") == category &&
+                    item.optString("note") == noteText &&
+                    item.optString("observed") == actual
+            }) return
+        events.put(
+            event("recall_insight", "", pack.id, line.id)
+                .put("category", category)
+                .put("note", noteText)
+                .put("expected", line.en)
+                .put("observed", actual)
+                .put("source_attempts", previous.attempts)
+                .put("wrong_words", JSONArray(previous.wrongWords))
+                .put("user_selected", true),
+        )
+        persist()
+    }
     }
 
     @Synchronized fun markUploaded(ids: Set<String>) {
@@ -328,7 +387,11 @@ internal class ListeningStore(
             .put("synced", false)
 
     /** The synced flag is a device-local outbox field, not part of the remote immutable event. */
-    private fun remoteEvent(original: JSONObject): JSONObject = JSONObject(original.toString()).apply { remove("synced") }
+    private fun remoteEvent(original: JSONObject): JSONObject =
+        JSONObject(original.toString()).apply {
+            remove("synced")
+            remove("upload_excluded")
+        }
 
     /** Practice preferences live in the listening JSON, not global app settings. */
     @Synchronized fun recallAutoNext(): Boolean = root.optBoolean("recall_auto_next", false)

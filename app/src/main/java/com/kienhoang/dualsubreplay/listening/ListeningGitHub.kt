@@ -118,15 +118,19 @@ internal class ListeningGitHub(
         _status.value = "PAT 已清除，本地单词和对话仍保留"
     }
 
-    suspend fun syncNow(): String =
+    suspend fun syncNow(uploadEvents: Boolean = false): String =
         mutex.withLock {
             withContext(Dispatchers.IO) {
                 try {
                     val token = vault.read() ?: return@withContext "未配置 PAT，请先连接 GitHub".also { _status.value = it }
-                    _status.value = "正在上传本地学习记录…"
+                    _status.value = if (uploadEvents) "正在上传已审核的学习记录…" else "正在获取学习内容…"
                     verify(token)
-                    val sent = pushPending(token)
-                    _status.value = "已上传 " + sent + " 条学习事件，正在备份词汇记忆…"
+                    val sent = if (uploadEvents) pushPending(token) else 0
+                    _status.value = if (uploadEvents) {
+                        "已上传 " + sent + " 条学习事件，正在备份词汇记忆…"
+                    } else {
+                        "自动同步不上传未经审核的逐句记录，正在备份词汇记忆…"
+                    }
                     restoreWordMemoryOnce(token)
                     pushWordMemory(token)
                     _status.value = "词汇记忆已备份，正在下载对话…"
@@ -153,7 +157,7 @@ internal class ListeningGitHub(
             if (preferences.getString("last_auto_attempt_day", null) == today) return
             preferences.edit().putString("last_auto_attempt_day", today).commit()
         }
-        syncNow()
+        syncNow(uploadEvents = false)
     }
 
     private fun verify(token: String) {
@@ -167,12 +171,14 @@ internal class ListeningGitHub(
             pending.groupBy { e ->
                 val month = e.getString("created_at").substring(0, 7)
                 check(month.matches(Regex("\\d{4}-\\d{2}")))
-                month
+                val stream = if (e.optString("type") == "recall_insight") "insights" else "events"
+                stream to month
             }
-        for ((month, events) in grouped) {
+        for ((key, events) in grouped) {
+            val (stream, month) = key
             val device = store.state.value.deviceId
             check(device.matches(Regex("[0-9a-fA-F-]{36}")))
-            val path = "data/events/" + device + "/" + month + ".jsonl"
+            val path = "data/" + stream + "/" + device + "/" + month + ".jsonl"
             var successful = false
             for (attempt in 1..4) {
                 val existing = getFile(token, path)
