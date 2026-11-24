@@ -92,6 +92,14 @@ class ListeningRecallCheckTest {
     }
 
     @Test
+    fun spokenNumbersAndDigitsCompareEquallyWithoutHidingActualMistakes() {
+        assertTrue(ListeningRecallCheck.compare("Only about five minutes", "Only about 5 minutes").perfect)
+        assertTrue(ListeningRecallCheck.compare("It takes sixty seconds", "It takes 60 seconds").perfect)
+        assertFalse(ListeningRecallCheck.compare("Only about five minutes", "Only about 6 minutes").perfect)
+        assertFalse(ListeningRecallCheck.compare("Take two bags", "Take the bags").perfect)
+    }
+
+    @Test
     fun emptyAnswerShowsAllMissing() {
         val result = ListeningRecallCheck.compare("Try again", "")
         assertEquals(2, result.differences)

@@ -653,6 +653,8 @@ internal fun ListeningScreen(
             onConfirmSync = {
                 val approvedIds = store.pendingEvents().map { it.getString("id") }.toSet()
                 val approvedDeletions = store.pendingDeletions().map { it.getString("id") }.toSet()
+                // Never-uploaded typos can be discarded locally at this confirmed step.
+                store.purgeDeletedLocalDrafts()
                 busy = true
                 scope.launch {
                     try {

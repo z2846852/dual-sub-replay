@@ -25,6 +25,16 @@ internal data class RecallComparison(
 internal object ListeningRecallCheck {
     private val wordPattern = Regex("""[\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*""")
     private val apostrophes = Regex("['’]")
+    private val numberWords = mapOf(
+        "zero" to "0", "one" to "1", "two" to "2", "three" to "3",
+        "four" to "4", "five" to "5", "six" to "6", "seven" to "7",
+        "eight" to "8", "nine" to "9", "ten" to "10", "eleven" to "11",
+        "twelve" to "12", "thirteen" to "13", "fourteen" to "14",
+        "fifteen" to "15", "sixteen" to "16", "seventeen" to "17",
+        "eighteen" to "18", "nineteen" to "19", "twenty" to "20",
+        "thirty" to "30", "forty" to "40", "fifty" to "50",
+        "sixty" to "60", "seventy" to "70", "eighty" to "80", "ninety" to "90",
+    )
     private val isContractions =
         setOf("he", "she", "it", "there", "that", "what", "who", "where", "here", "how", "when", "why")
 
@@ -64,7 +74,11 @@ internal object ListeningRecallCheck {
             .findAll(Normalizer.normalize(text, Normalizer.Form.NFKC))
             .map { match ->
                 val shown = match.value
-                Word(shown, shown.lowercase(Locale.ROOT).replace(apostrophes, "'"))
+                Word(
+                    shown,
+                    shown.lowercase(Locale.ROOT).replace(apostrophes, "'")
+                        .let { numberWords[it] ?: it },
+                )
             }.flatMap(::expand)
             .toList()
 

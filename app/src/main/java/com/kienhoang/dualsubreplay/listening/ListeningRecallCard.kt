@@ -160,7 +160,7 @@ internal fun ListeningRecallCard(
                 TextButton(
                     onClick = onOpenReview,
                     contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp),
-                ) { Text("ⓘ", style = MaterialTheme.typography.titleMedium) }
+                ) { Text("!", style = MaterialTheme.typography.titleMedium) }
             }
             if (error != null) {
                 Text(error, color = MaterialTheme.colorScheme.error)
