@@ -321,15 +321,15 @@ internal fun ListeningRecallCard(
                     contentPadding = PaddingValues(horizontal = 5.dp, vertical = 0.dp),
                 ) { Text(stringResource(R.string.listening_recall_replay), style = MaterialTheme.typography.labelMedium, maxLines = 1) }
                 OutlinedButton(
-                    enabled = progress.mayShowRedOnly() && checkedCurrent && comparison?.perfect == false,
+                    enabled = line.zh.isNotBlank() && progress.mayShowMeaning() && checkedCurrent && comparison?.perfect == false,
                     onClick = {
                         revealed = 1
                         onHint(1)
                     },
-                    modifier = Modifier.weight(1f).height(42.dp).testTag("recall_red_only"),
+                    modifier = Modifier.weight(1f).height(42.dp).testTag("recall_show_meaning"),
                     shape = RoundedCornerShape(12.dp),
                     contentPadding = PaddingValues(horizontal = 5.dp, vertical = 0.dp),
-                ) { Text(stringResource(R.string.listening_recall_red_only), style = MaterialTheme.typography.labelMedium, maxLines = 1) }
+                ) { Text(stringResource(R.string.listening_recall_show_meaning), style = MaterialTheme.typography.labelMedium, maxLines = 1) }
                 OutlinedButton(
                     onClick = {
                         revealed = 2
@@ -340,12 +340,21 @@ internal fun ListeningRecallCard(
                     contentPadding = PaddingValues(horizontal = 5.dp, vertical = 0.dp),
                 ) { Text(stringResource(R.string.listening_recall_reveal), style = MaterialTheme.typography.labelMedium, maxLines = 1) }
             }
-            if (revealed >= 1 && checkedCurrent && comparison != null && !comparison.perfect) {
+            // Mark differences immediately after checking; showing Chinese is a separate voluntary hint.
+            if (checkedCurrent && comparison != null && !comparison.perfect) {
                 Text(
                     stringResource(R.string.listening_recall_actual),
                     style = MaterialTheme.typography.labelMedium,
                 )
                 RecallDifferenceRow(comparison, expected = false, onTargetTap = {})
+            }
+            if (revealed >= 1 && line.zh.isNotBlank()) {
+                Text(
+                    line.zh,
+                    modifier = Modifier.fillMaxWidth().testTag("recall_meaning_text"),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
             }
             if (revealed >= 2) {
                 Text(
@@ -356,9 +365,6 @@ internal fun ListeningRecallCard(
                     RecallDifferenceRow(comparison, expected = true, onTargetTap = { onWordTap(it, line) })
                 } else {
                     Text(line.en)
-                }
-                if (line.zh.isNotBlank()) {
-                    Text(line.zh, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 Text(
                     stringResource(R.string.listening_recall_note),
