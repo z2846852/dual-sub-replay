@@ -10,6 +10,7 @@ import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -37,6 +38,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ClosedCaption
+import androidx.compose.material.icons.filled.Headphones
+import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
@@ -150,6 +153,7 @@ fun DualSubApp(
         ListeningVoicePrefetch.schedule(listeningContext, listeningStore.state.value.packs)
     }
     var showListening by remember { mutableStateOf(false) }
+    var listeningFromShortcut by remember { mutableStateOf(false) }
     var showTranslate by remember { mutableStateOf(false) }
     val webController = rememberYouTubeWebController()
     val pronouncer = rememberWordPronouncer()
@@ -239,6 +243,13 @@ fun DualSubApp(
                     onListening = {
                         viewModel.selectLearningWord(null)
                         webController.pause()
+                        listeningFromShortcut = false
+                        showListening = true
+                    },
+                    onListeningPractice = {
+                        viewModel.selectLearningWord(null)
+                        webController.pause()
+                        listeningFromShortcut = true
                         showListening = true
                     },
                     onTranslate = {
@@ -339,6 +350,7 @@ fun DualSubApp(
                 store = listeningStore,
                 github = listeningGitHub,
                 vocabulary = viewModel.vocabulary,
+                startInRecall = listeningFromShortcut,
                 onClose = { showListening = false },
             )
         }
@@ -433,6 +445,7 @@ private fun DualSubExperience(
     webController: YouTubeWebController,
     onVocabulary: () -> Unit,
     onListening: () -> Unit,
+    onListeningPractice: () -> Unit,
     onTranslate: () -> Unit,
     onProgress: () -> Unit,
     onAutoPronounceChange: (Boolean) -> Unit,
@@ -584,6 +597,37 @@ private fun DualSubExperience(
             Surface {
                 Row(Modifier.fillMaxWidth().statusBarsPadding(), verticalAlignment = Alignment.CenterVertically) {
                     menuButton()
+                    if (!tvLayout) {
+                        TextButton(
+                            onClick = onListeningPractice,
+                            modifier = Modifier.height(40.dp).testTag("quick_listening_recall"),
+                            shape = RoundedCornerShape(12.dp),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                            colors = androidx.compose.material3.ButtonDefaults.textButtonColors(
+                                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                            ),
+                        ) {
+                            Icon(Icons.Default.Headphones, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("听力练习", style = MaterialTheme.typography.labelMedium, maxLines = 1)
+                        }
+                        Spacer(Modifier.width(8.dp))
+                        TextButton(
+                            onClick = onTranslate,
+                            modifier = Modifier.height(40.dp).testTag("quick_bilingual_translate"),
+                            shape = RoundedCornerShape(12.dp),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                            colors = androidx.compose.material3.ButtonDefaults.textButtonColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                contentColor = MaterialTheme.colorScheme.onSurface,
+                            ),
+                        ) {
+                            Icon(Icons.Default.Translate, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("快速翻译", style = MaterialTheme.typography.labelMedium, maxLines = 1)
+                        }
+                    }
                     Spacer(Modifier.weight(1f))
                     // Translation problems show here instead of interrupting the video: in the
                     // assistant panel when the assistant is on, otherwise in their own icon.

@@ -75,6 +75,7 @@ internal fun ListeningScreen(
     store: ListeningStore,
     github: ListeningGitHub,
     vocabulary: VocabularyRepository,
+    startInRecall: Boolean = false,
     onClose: () -> Unit,
 ) {
     val ctx = LocalContext.current
@@ -111,12 +112,24 @@ internal fun ListeningScreen(
     var showSortMenu by remember { mutableStateOf(false) }
     var showUploadReview by remember { mutableStateOf(false) }
     var focusedReviewLine by remember { mutableStateOf<String?>(null) }
-    var recallMode by remember { mutableStateOf(false) }
+    var recallMode by remember { mutableStateOf(startInRecall) }
+    var initialRecallPlayed by remember { mutableStateOf(false) }
     var recallIndex by remember(pack?.id) { mutableStateOf(pack?.let(store::recallPosition) ?: 0) }
     var wrongOnly by remember(pack?.id) { mutableStateOf(false) }
     var reviewMode by remember { mutableStateOf(false) }
     var reviewWord by remember { mutableStateOf<String?>(null) }
     var answerVisible by remember { mutableStateOf(false) }
+
+    // Opening via the top shortcut starts the saved sentence directly. The side-menu item
+    // retains its current continuous-listening entry point. Never auto-restart after paging.
+    LaunchedEffect(startInRecall, pack?.id) {
+        if (startInRecall && pack != null && !initialRecallPlayed && pack.lines.isNotEmpty()) {
+            initialRecallPlayed = true
+            val resume = store.recallPosition(pack).coerceIn(pack.lines.indices)
+            recallIndex = resume
+            ListeningPlayback.start(ctx, pack, resume, oneShot = true)
+        }
+    }
 
     Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(Modifier.fillMaxSize()) {
