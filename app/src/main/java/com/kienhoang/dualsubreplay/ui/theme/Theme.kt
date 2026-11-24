@@ -75,6 +75,10 @@ private fun darkDualSubColorScheme(
         surfaceContainerHighest = tint(0xFF1A383C),
         outline = tint(0xFF6F8B8F),
         outlineVariant = tint(0xFF2A4649),
+        tertiary = Color(0xFF78DEAA),
+        onTertiary = Color(0xFF00391B),
+        tertiaryContainer = Color(0xFF15472E),
+        onTertiaryContainer = Color(0xFFB7F7CF),
         error = Color(0xFFFFB4AB),
     )
 }
@@ -105,6 +109,10 @@ private fun lightDualSubColorScheme(accent: Color): ColorScheme {
         surfaceContainerHighest = Color(0xFFE3EAEB),
         outline = Color(0xFF6F8386),
         outlineVariant = Color(0xFFC3D1D3),
+        tertiary = Color(0xFF147644),
+        onTertiary = Color.White,
+        tertiaryContainer = Color(0xFFD1F4DF),
+        onTertiaryContainer = Color(0xFF134D2D),
         error = Color(0xFFBA1A1A),
         onError = Color.White,
     )
