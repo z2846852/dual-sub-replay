@@ -23,7 +23,7 @@
     <string name="listening_recall_failed">No superada · intento %1$d</string>
     <string name="listening_recall_recognition_correction">¿Error de reconocimiento? Corregir sin contar intento</string>
     <string name="listening_recall_correction_pending">La corrección no contará como otro intento</string>
-    <string name="listening_recall_red_only">Solo rojo</string>
+    <string name="listening_recall_show_meaning">Ver chino</string>
     <string name="listening_recall_reveal">Ver respuesta</string>
     <string name="listening_recall_summary">Correctas %1$d · Errores %2$d · Total %3$d</string>
     <string name="listening_recall_status_passed">Correcta</string>
