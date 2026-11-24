@@ -23,7 +23,7 @@
     <string name="listening_recall_failed">未通过 · 第 %1$d 次核对</string>
     <string name="listening_recall_recognition_correction">语音识别有误？修改后不计次数</string>
     <string name="listening_recall_correction_pending">本次按识别修正重新核对，不增加听辨次数</string>
-    <string name="listening_recall_red_only">仅标红</string>
+    <string name="listening_recall_show_meaning">显示中文</string>
     <string name="listening_recall_reveal">揭晓答案</string>
     <string name="listening_recall_summary">通过 %1$d · 错句 %2$d · 共 %3$d</string>
     <string name="listening_recall_status_passed">通过</string>
