@@ -77,7 +77,9 @@ internal fun ListeningUploadReviewDialog(
             val label = if (pack != null && index >= 0) {
                 pack.title + " · 第 " + (index + 1) + " 句"
             } else {
-                if (lineId.isEmpty()) "单词收藏与复习" else packId + " / " + lineId
+                if (lineId.isEmpty()) {
+                    if (pack != null) pack.title + " · 对话后 Raw" else packId + " · 自由表达"
+                } else packId + " / " + lineId
             }
             ReviewGroup(key, label, group.sortedByDescending { it.optString("created_at") })
         }.sortedByDescending { it.records.firstOrNull()?.optString("created_at").orEmpty() }

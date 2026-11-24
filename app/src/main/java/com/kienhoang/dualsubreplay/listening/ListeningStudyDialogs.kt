@@ -73,7 +73,10 @@ internal fun ListeningDelayedReviewDialog(
     onCheck: (ListeningRetest, String) -> Boolean,
     onClose: () -> Unit,
 ) {
-    val item = due.firstOrNull()
+    // Keep the just-tested sentence visible until the user reads feedback and advances.
+    var completedItem by remember { mutableStateOf<ListeningRetest?>(null) }
+    var completedResult by remember { mutableStateOf<Boolean?>(null) }
+    val item = completedItem ?: due.firstOrNull()
     if (item == null) {
         AlertDialog(
             onDismissRequest = onClose,
@@ -85,7 +88,6 @@ internal fun ListeningDelayedReviewDialog(
     }
     key(item.pack.id, item.lineIndex, item.dueOn) {
         var answer by remember { mutableStateOf("") }
-        var lastResult by remember { mutableStateOf<Boolean?>(null) }
         AlertDialog(
             onDismissRequest = onClose,
             title = { Text("隔天回忆 · " + due.size + " 句待测") },
@@ -108,11 +110,11 @@ internal fun ListeningDelayedReviewDialog(
                         minLines = 2,
                         maxLines = 5,
                     )
-                    if (lastResult != null) {
+                    if (completedResult != null) {
                         Text(
-                            if (lastResult == true) "复查通过，已安排下一次间隔"
+                            if (completedResult == true) "复查通过，已安排下一次间隔"
                             else "本次未通过，明天继续复查；不会抹去此前进步",
-                            color = if (lastResult == true) MaterialTheme.colorScheme.primary
+                            color = if (completedResult == true) MaterialTheme.colorScheme.primary
                                 else MaterialTheme.colorScheme.error,
                             style = MaterialTheme.typography.bodySmall,
                         )
@@ -121,10 +123,21 @@ internal fun ListeningDelayedReviewDialog(
                 }
             },
             confirmButton = {
-                Button(
-                    enabled = answer.isNotBlank() && lastResult == null,
-                    onClick = { lastResult = onCheck(item, answer) },
-                ) { Text(if (lastResult != null) "已记录" else "核对并记入保持率") }
+                if (completedResult == null) {
+                    Button(
+                        enabled = answer.isNotBlank(),
+                        onClick = {
+                            completedResult = onCheck(item, answer)
+                            completedItem = item
+                        },
+                    ) { Text("核对并记入保持率") }
+                } else {
+                    Button(onClick = {
+                        completedResult = null
+                        completedItem = null
+                        if (due.isEmpty()) onClose()
+                    }) { Text(if (due.isEmpty()) "完成" else "下一句") }
+                }
             },
             dismissButton = { TextButton(onClick = onClose) { Text("返回") } },
         )
