@@ -52,7 +52,7 @@ internal object ListeningRecallCheck {
         "nicolas", "stewart", "nancy", "jessica", "joe", "kim",
         "mary", "john", "brian", "bob", "lawrence", "patrick",
     )
-    /** Do not waive useful conversational forms such as gonna, wanna, gotta, ain't. */
+    /** Do not waive useful everyday conversational forms such as gonna, wanna, gotta. */
     private val optionalSlang = setOf(
         "bitch", "bitches", "bullshit", "crap", "crappy", "asshole",
         "jackass", "friggin", "frigging", "freakin", "freaking",
