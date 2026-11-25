@@ -164,6 +164,7 @@ internal val SETTING_SPECS: Map<String, SettingSpec> =
         // Progress, updates and TV.
         "daily_goal_minutes" to backup(I),
         "daily_goal_prompt_completed" to backup(B),
+        "triple_translate_mode" to backup(B),
         "app_auto_update" to backup(B),
         "update_reminders" to backup(B),
         "tv_layout" to backup(B),
