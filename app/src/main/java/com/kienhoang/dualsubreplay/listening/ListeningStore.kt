@@ -95,9 +95,64 @@ internal class ListeningStore(
     context: Context,
 ) {
     private val file = AtomicFile(File(context.filesDir, "offline-listening-state.json"))
+    private val seriesFile = AtomicFile(File(context.filesDir, "offline-listening-series.json"))
     private var root = read()
+    private val seriesPacks = readSeriesCache()
     private val _state = MutableStateFlow(snapshot())
     val state = _state.asStateFlow()
+
+    init {
+        // Migrate earlier per-episode downloads out of the frequently rewritten progress file.
+        val previous = root.optJSONArray("packs") ?: JSONArray()
+        val ordinary = JSONArray()
+        var hadLegacySeries = false
+        for (index in 0 until previous.length()) {
+            val item = previous.getJSONObject(index)
+            val pack = runCatching { ListeningPack.fromJson(item) }.getOrNull()
+            if (pack?.kind == SITCOM_PACK_KIND) {
+                seriesPacks.putIfAbsent(pack.id, pack)
+                hadLegacySeries = true
+            } else {
+                ordinary.put(item)
+            }
+        }
+        if (hadLegacySeries) {
+            // A failure must never discard the original all-in-one cache.
+            runCatching {
+                persistSeriesCache(seriesPacks)
+                root.put("packs", ordinary)
+                persist()
+            }
+        }
+    }
+
+    private fun readSeriesCache(): LinkedHashMap<String, ListeningPack> {
+        val result = LinkedHashMap<String, ListeningPack>()
+        if (!seriesFile.baseFile.exists()) return result
+        val stored = JSONArray(seriesFile.openRead().bufferedReader(Charsets.UTF_8).use { it.readText() })
+        require(stored.length() <= 1000) { "剧集字幕缓存数量异常" }
+        for (i in 0 until stored.length()) {
+            val pack = ListeningPack.fromJson(stored.getJSONObject(i))
+            require(pack.kind == SITCOM_PACK_KIND)
+            result[pack.id] = pack
+        }
+        return result
+    }
+
+    private fun persistSeriesCache(packs: Map<String, ListeningPack>) {
+        val payload = JSONArray().apply {
+            packs.values.forEach { put(it.toJson()) }
+        }
+        var stream: java.io.FileOutputStream? = null
+        try {
+            stream = seriesFile.startWrite()
+            stream.write(payload.toString().toByteArray(Charsets.UTF_8))
+            seriesFile.finishWrite(stream)
+        } catch (error: Exception) {
+            if (stream != null) seriesFile.failWrite(stream)
+            throw error
+        }
+    }
 
     private fun read(): JSONObject {
         if (!file.baseFile.exists()) {
@@ -119,10 +174,13 @@ internal class ListeningStore(
         val seriesEpisodes = (0 until catalog.length()).mapNotNull {
             runCatching { ListeningSeriesEpisode.fromJson(catalog.getJSONObject(it)) }.getOrNull()
         }
-        val packs =
-            (0 until packsArray.length()).mapNotNull {
-                runCatching { ListeningPack.fromJson(packsArray.getJSONObject(it)) }.getOrNull()
-            }
+        val byId = LinkedHashMap<String, ListeningPack>()
+        for (index in 0 until packsArray.length()) {
+            runCatching { ListeningPack.fromJson(packsArray.getJSONObject(index)) }
+                .getOrNull()?.let { byId[it.id] = it }
+        }
+        seriesPacks.forEach { (id, pack) -> byId[id] = pack }
+        val packs = byId.values.toList()
         val savedWords = HashSet<String>()
         var pending = 0
         for (i in 0 until events.length()) {
@@ -937,16 +995,30 @@ internal class ListeningStore(
     }
 
     @Synchronized fun putPacks(packs: List<ListeningPack>) {
-        val previous = root.optJSONArray("packs") ?: JSONArray()
-        val byId = LinkedHashMap<String, ListeningPack>()
-        for (i in 0 until previous.length()) {
-            runCatching { ListeningPack.fromJson(previous.getJSONObject(i)) }.getOrNull()?.let { byId[it.id] = it }
+        val newSeries = packs.filter { it.kind == SITCOM_PACK_KIND }
+        if (newSeries.isNotEmpty()) {
+            val next = LinkedHashMap(seriesPacks)
+            newSeries.forEach { next[it.id] = it }
+            // Commit series text before replacing the live cache, keeping existing work on failure.
+            persistSeriesCache(next)
+            seriesPacks.clear()
+            seriesPacks.putAll(next)
         }
-        packs.forEach { byId[it.id] = it }
-        val all = JSONArray()
-        byId.values.forEach { all.put(it.toJson()) }
-        root.put("packs", all)
-        persist()
+        val ordinary = packs.filter { it.kind != SITCOM_PACK_KIND }
+        if (ordinary.isNotEmpty()) {
+            val previous = root.optJSONArray("packs") ?: JSONArray()
+            val byId = LinkedHashMap<String, ListeningPack>()
+            for (i in 0 until previous.length()) {
+                runCatching { ListeningPack.fromJson(previous.getJSONObject(i)) }
+                    .getOrNull()?.let { byId[it.id] = it }
+            }
+            ordinary.forEach { byId[it.id] = it }
+            root.put("packs", JSONArray().apply { byId.values.forEach { put(it.toJson()) } })
+            persist()
+        } else if (newSeries.isNotEmpty()) {
+            // Publish newly cached subtitles without rewriting the learning-events file.
+            _state.value = snapshot()
+        }
     }
 
     /** Cache only lightweight episode metadata; subtitle texts stay on-demand. */
