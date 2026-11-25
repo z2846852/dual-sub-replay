@@ -8,6 +8,8 @@ internal data class RecallWordDifference(
     val expected: String?,
     val actual: String?,
     val matches: Boolean,
+    /** A missing, explicitly whitelisted proper name or non-essential slang term. */
+    val optionalOmission: Boolean = false,
 )
 
 internal data class RecallComparison(
@@ -15,6 +17,12 @@ internal data class RecallComparison(
 ) {
     val differences: Int get() = words.count { !it.matches }
     val perfect: Boolean get() = words.isNotEmpty() && differences == 0
+    val optionalOmissions: List<String>
+        get() = words.filter { it.optionalOmission }.mapNotNull { it.expected }
+    val blockingDifferences: Int get() = words.count { !it.matches && !it.optionalOmission }
+    /** A relaxed pass is not a perfect answer: keep the original visible and require manual Next. */
+    val softPass: Boolean
+        get() = optionalOmissions.isNotEmpty() && blockingDifferences == 0 && words.any { it.matches }
 }
 
 /**
@@ -35,6 +43,20 @@ internal object ListeningRecallCheck {
         "thirty" to "30", "forty" to "40", "fifty" to "50",
         "sixty" to "60", "seventy" to "70", "eighty" to "80", "ninety" to "90",
     )
+    /** Restricted to the sitcom study pack; never infer a proper name from sentence-initial caps. */
+    private val optionalNames = setOf(
+        "max", "caroline", "han", "oleg", "sophie", "earl", "andy", "diner",
+        "chestnut", "peach", "darius", "dake", "deke", "candy", "johnny",
+        "luis", "luis", "nash", "randy", "jennifer", "martha", "bebe",
+        "shoshanna", "sandra", "sasha", "hanlee",
+    ) - "diner"
+    /** Do not waive useful conversational forms such as gonna, wanna, gotta, ain't. */
+    private val optionalSlang = setOf(
+        "bitch", "bitches", "bullshit", "crap", "crappy", "asshole",
+        "jackass", "friggin", "frigging", "freakin", "freaking",
+        "fucking", "fuck", "shitty", "shit", "douche", "douchebag",
+    )
+
     private val isContractions =
         setOf("he", "she", "it", "there", "that", "what", "who", "where", "here", "how", "when", "why")
 
@@ -85,18 +107,24 @@ internal object ListeningRecallCheck {
     fun compare(
         expected: String,
         actual: String,
+        ignoreOptional: Boolean = false,
     ): RecallComparison {
         val wanted = words(expected)
         val said = words(actual)
+        val optionalExpected = wanted.map { word ->
+            ignoreOptional && (word.key in optionalNames || word.key in optionalSlang)
+        }
         val distances = Array(wanted.size + 1) { IntArray(said.size + 1) }
-        for (i in wanted.indices) distances[i + 1][0] = i + 1
+        for (i in wanted.indices) {
+            distances[i + 1][0] = distances[i][0] + if (optionalExpected[i]) 0 else 1
+        }
         for (j in said.indices) distances[0][j + 1] = j + 1
         for (i in 1..wanted.size) {
             for (j in 1..said.size) {
                 val cost = if (wanted[i - 1].key == said[j - 1].key) 0 else 1
                 distances[i][j] =
                     minOf(
-                        distances[i - 1][j] + 1,
+                        distances[i - 1][j] + if (optionalExpected[i - 1]) 0 else 1,
                         distances[i][j - 1] + 1,
                         distances[i - 1][j - 1] + cost,
                     )
@@ -115,8 +143,13 @@ internal object ListeningRecallCheck {
                 i > 0 && j > 0 && distances[i][j] == distances[i - 1][j - 1] + 1 -> {
                     result += RecallWordDifference(wanted[--i].shown, said[--j].shown, matches = false)
                 }
-                i > 0 && distances[i][j] == distances[i - 1][j] + 1 -> {
-                    result += RecallWordDifference(wanted[--i].shown, null, matches = false)
+                i > 0 && distances[i][j] == distances[i - 1][j] +
+                    if (optionalExpected[i - 1]) 0 else 1 -> {
+                    val omitted = --i
+                    result += RecallWordDifference(
+                        wanted[omitted].shown, null, matches = false,
+                        optionalOmission = optionalExpected[omitted],
+                    )
                 }
                 else -> {
                     check(j > 0)
