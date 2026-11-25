@@ -143,6 +143,17 @@ internal fun ListeningScreen(
         }
     }
 
+    LaunchedEffect(sitcomMode, connected) {
+        if (sitcomMode && connected) {
+            busy = true
+            try {
+                message = github.downloadAllSeries()
+            } finally {
+                busy = false
+            }
+        }
+    }
+
     Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(Modifier.fillMaxSize()) {
             Scaffold(topBar = {
@@ -153,18 +164,6 @@ internal fun ListeningScreen(
                 ) {
                     Icon(Icons.Default.Headphones, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                     Text("听力训练", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                    TextButton(enabled = !busy, onClick = {
-                        if (!connected) {
-                            showSettings = true
-                            message = "请先在设置中连接 English 仓库的 GitHub PAT"
-                        } else {
-                            busy = true
-                            scope.launch {
-                                try { message = github.refreshContentNow() }
-                                finally { busy = false }
-                            }
-                        }
-                    }) { Text("同步文章") }
                     TextButton(onClick = { showSettings = !showSettings }) { Text("设置") }
                     IconButton(onClick = onClose) { Icon(Icons.Default.Close, contentDescription = "返回 YouTube") }
                 }
@@ -177,48 +176,6 @@ internal fun ListeningScreen(
                         .imePadding(),
                     verticalArrangement = Arrangement.spacedBy(9.dp),
                 ) {
-                    item {
-                        // Five real counters stay visible without a multi-line diagnostic log.
-                        val metrics = listOf(
-                            (if (sitcomMode) "分段" else "故事") to orderedPacks.size,
-                            "待传" to state.pending,
-                            "词汇" to state.saved,
-                            "待复习" to state.due,
-                            "待巩固" to state.unestablished,
-                        )
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
-                            horizontalArrangement = Arrangement.spacedBy(3.dp),
-                        ) {
-                            metrics.forEachIndexed { i, (name, count) ->
-                                Column(
-                                    modifier = Modifier.weight(1f),
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.spacedBy(1.dp),
-                                ) {
-                                    Text(
-                                        count.toString(),
-                                        style = MaterialTheme.typography.titleMedium,
-                                        color = if (i == 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                                    )
-                                    Text(
-                                        name,
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        maxLines = 1,
-                                    )
-                                }
-                            }
-                        }
-                        if (status.contains("失败") || status.startsWith("正在") || status.startsWith("同步完成") || status.startsWith("未配置")) {
-                            Text(
-                                status,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = if (status.contains("失败")) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 2,
-                            )
-                        }
-                    }
                     item {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -249,184 +206,19 @@ internal fun ListeningScreen(
                                 label = { Text("🎬 破产姐妹") },
                             )
                         }
-                        if (sitcomMode) {
-                            Text(
-                                "《破产姐妹》专辑 · 按季选集，字幕分段复述",
-                                style = MaterialTheme.typography.labelMedium,
-                            )
-                            FlowRow(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                                (1..6).forEach { number ->
-                                    FilterChip(
-                                        selected = sitcomSeason == number,
-                                        onClick = {
-                                            if (sitcomSeason != number) {
-                                                ListeningPlayback.stop(ctx)
-                                                sitcomSeason = number
-                                                currentId = null
-                                            }
-                                        },
-                                        label = { Text("第" + number + "季") },
-                                    )
-                                }
+                        if (sitcomMode && busy) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                CircularProgressIndicator(modifier = Modifier.size(18.dp))
+                                Text("正在自动下载六季字幕…", Modifier.padding(start = 8.dp),
+                                    style = MaterialTheme.typography.labelSmall)
                             }
-                            Text(
-                                "第" + sitcomSeason + "季 · 目录 " + seriesEpisodes.size +
-                                    " 集 / 已缓存 " + orderedPacks.size + " 段",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
                         }
-                    }
-                    if (sitcomMode && seriesEpisodes.isEmpty()) {
-                        item {
-                            Text(
-                                "本季尚无已导入的字幕。请先用 English 仓库导入你有权使用的 SRT/VTT，之后点击右上角「同步文章」。",
-                                style = MaterialTheme.typography.bodySmall,
-                            )
-                        }
-                    }
-                    if (sitcomMode && seriesEpisodes.isNotEmpty()) {
-                        items(seriesEpisodes, key = { "2bg-episode-" + it.season + "-" + it.episode }) { episode ->
-                            val loadedParts = episode.parts.mapNotNull { part ->
-                                state.packs.firstOrNull { it.id == part.id && it.kind == SITCOM_PACK_KIND }
-                            }
-                            val downloaded = loadedParts.size == episode.parts.size
-                            Card(
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = CardDefaults.cardColors(
-                                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-                                ),
-                                shape = RoundedCornerShape(12.dp),
-                            ) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                ) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(episode.title, style = MaterialTheme.typography.titleSmall)
-                                        Text(
-                                            episode.parts.size.toString() + " 段 · " +
-                                                (if (downloaded) "已离线缓存" else "点击载入字幕"),
-                                            style = MaterialTheme.typography.labelSmall,
-                                        )
-                                    }
-                                    OutlinedButton(enabled = !busy, onClick = {
-                                        if (downloaded) {
-                                            val target = loadedParts.firstOrNull()
-                                            if (target != null) {
-                                                currentId = target.id
-                                                recallMode = true
-                                                recallIndex = store.recallPosition(target)
-                                                store.markPackUsed(target)
-                                                ListeningPlayback.start(ctx, target, recallIndex, oneShot = true)
-                                            }
-                                        } else if (!connected) {
-                                            showSettings = true
-                                            message = "请先配置 English GitHub PAT 后载入本集"
-                                        } else {
-                                            busy = true
-                                            scope.launch {
-                                                try {
-                                                    message = github.loadSeriesEpisode(episode)
-                                                    if (message.startsWith("已载入")) {
-                                                        val target = store.state.value.packs.firstOrNull {
-                                                            it.id == episode.parts.first().id
-                                                        }
-                                                        if (target != null) {
-                                                            currentId = target.id
-                                                            recallMode = true
-                                                            recallIndex = store.recallPosition(target)
-                                                            store.markPackUsed(target)
-                                                            ListeningPlayback.start(ctx, target, recallIndex, oneShot = true)
-                                                        }
-                                                    }
-                                                } finally {
-                                                    busy = false
-                                                }
-                                            }
-                                        }
-                                    }) {
-                                        Text(if (downloaded) "复述" else "下载")
-                                    }
-                                }
-                            }
+                        if (sitcomMode && status.isNotBlank()) {
+                            Text(status, style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 3)
                         }
                     }
                     if (pack != null) {
-                        item {
-                            val metrics = store.learningMetrics()
-                            val dueCount = store.dueRetests().size
-                            val rate = metrics.firstPassRate?.let { it.toString() + "%" } ?: "数据不足"
-                            val retention = metrics.delayedRate?.let { it.toString() + "%" } ?: "待复查"
-                            val suggested = metrics.nextLevel(pack.level)
-                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Text(
-                                    "真实学习：首次独立正确 $rate · 延迟保持 $retention · Raw " +
-                                        metrics.freeExpressions,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                ) {
-                                    if (dueCount > 0) {
-                                        Button(onClick = { delayedReviewOpen = true }) {
-                                            Text("隔天复查 $dueCount 句")
-                                        }
-                                    }
-                                    Text(
-                                        if (metrics.firstIndependentChecks >= 5) {
-                                            "建议难度 $suggested · 基于首次正确率"
-                                        } else {
-                                            "还需 " + (5 - metrics.firstIndependentChecks).coerceAtLeast(0) +
-                                                " 次独立答题评估难度"
-                                        },
-                                        style = MaterialTheme.typography.labelSmall,
-                                        modifier = Modifier.weight(1f),
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                    if (metrics.firstIndependentChecks >= 5) {
-                                        val suggestedPack = orderedPacks.firstOrNull {
-                                            it.level.equals(suggested, ignoreCase = true)
-                                        }
-                                        if (suggestedPack != null && suggestedPack.id != pack.id) {
-                                            TextButton(onClick = {
-                                                currentId = suggestedPack.id
-                                                recallMode = true
-                                                recallIndex = store.recallPosition(suggestedPack)
-                                                store.markPackUsed(suggestedPack)
-                                                ListeningPlayback.start(ctx, suggestedPack, recallIndex, oneShot = true)
-                                            }) { Text("练推荐") }
-                                        }
-                                    }
-                                }
-                                val personal = orderedPacks.filter { it.kind == "personal_drill" }
-                                if (personal.isNotEmpty()) {
-                                    val target = personal.firstOrNull { it.id != pack.id } ?: personal.first()
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                    ) {
-                                        Text(
-                                            "🎯 个人错点专项 " + personal.size + " 份",
-                                            style = MaterialTheme.typography.labelMedium,
-                                            modifier = Modifier.weight(1f),
-                                        )
-                                        TextButton(onClick = {
-                                            currentId = target.id
-                                            recallMode = true
-                                            recallIndex = store.recallPosition(target)
-                                            store.markPackUsed(target)
-                                            ListeningPlayback.start(ctx, target, recallIndex, oneShot = true)
-                                        }) { Text("练习 " + target.level) }
-                                    }
-                                }
-                            }
-                        }
                         item {
                             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                 FilterChip(
@@ -596,6 +388,400 @@ internal fun ListeningScreen(
                                         selectedLine = line
                                     },
                                 )
+                            }
+                        }
+                    }
+                    if (state.unestablished >= 100) {
+                        item {
+                            Card {
+                                Text(
+                                    "当前有 " + state.unestablished +
+                                        " 个尚未经过有效复习验证的词。建议优先复习；仍可继续收藏。",
+                                    Modifier.padding(12.dp),
+                                )
+                            }
+                        }
+                    }
+                    if (showSettings) {
+                        item {
+                            Card {
+                                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Column(Modifier.weight(1f)) {
+                                            Text("自然语音预缓存", style = MaterialTheme.typography.titleSmall)
+                                            Text("同步后自动下载，缓存缺失时可尝试本机语音",
+                                                style = MaterialTheme.typography.bodySmall)
+                                        }
+                                        Switch(checked = preferNatural, onCheckedChange = {
+                                            preferNatural = it
+                                            voicePreferences.edit().putBoolean("listening_natural_voice", it).apply()
+                                        })
+                                    }
+                                    Text("连接私有 z2846852/english 仓库", style = MaterialTheme.typography.titleSmall)
+                                    Text(
+                                        "PAT 仅在本机加密保存。每天首次打开时尝试同步学习事件和词汇记忆；换手机且本地词库为空时可恢复云端备份。",
+                                        style = MaterialTheme.typography.bodySmall,
+                                    )
+                                    if (!connected) {
+                                        OutlinedTextField(
+                                            value = pat,
+                                            onValueChange = { pat = it },
+                                            label = { Text("GitHub Fine-grained PAT") },
+                                            visualTransformation = PasswordVisualTransformation(),
+                                            singleLine = true,
+                                            modifier = Modifier.fillMaxWidth(),
+                                        )
+                                        Button(enabled = !busy && pat.isNotBlank(), onClick = {
+                                            busy = true
+                                            scope.launch {
+                                                try {
+                                                    github.connect(pat)
+                                                    connected = true
+                                                    pat = ""
+                                                    github.syncNow()
+                                                } catch (
+                                                    e: Exception,
+                                                ) {
+                                                    message = "连接失败：" + (e.message ?: "请检查权限")
+                                                } finally {
+                                                    busy = false
+                                                }
+                                            }
+                                        }) { Text("连接并同步") }
+                                    } else {
+                                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            OutlinedButton(onClick = {
+                                                github.forgetToken()
+                                                connected = false
+                                            }) { Text("清除 PAT") }
+                                            Text("已连接", Modifier.padding(top = 10.dp))
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    item {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Button(enabled = !busy && connected, onClick = {
+                                focusedReviewLine = null
+                                showUploadReview = true
+                                busy = true
+                                scope.launch {
+                                    try { message = github.refreshCloudReviewHistory() }
+                                    finally { busy = false }
+                                }
+                            }) { Text("审核并同步 GitHub") }
+                            if (busy) CircularProgressIndicator()
+                        }
+                        if (message.isNotBlank()) Text(message, style = MaterialTheme.typography.bodySmall)
+                        if (cacheProgress.total > 0 &&
+                            (cacheProgress.running || cacheProgress.complete < cacheProgress.total)) {
+                            Text(
+                                "语音缓存 ${cacheProgress.complete}/${cacheProgress.total}" +
+                                    (cacheProgress.warning?.let { " · ❗$it" } ?: ""),
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                    }
+                    item {
+                        HorizontalDivider()
+                        Text(
+                            "听辨复习 · 从听懂开始",
+                            style = MaterialTheme.typography.titleSmall,
+                        )
+                        Text(
+                            "先盲听，再判断自己是否真正认出。听过很多次只代表接触过，不等于已经听懂。",
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                        if (!reviewMode) {
+                            Button(enabled = store.reviewCandidates().isNotEmpty(), onClick = {
+                                reviewWord = store.reviewCandidates().firstOrNull()
+                                answerVisible = false
+                                reviewMode = true
+                            }) { Text("开始听辨复习") }
+                        } else {
+                            val target = reviewWord
+                            if (target == null) {
+                                Text("当前待复习项目已经完成。")
+                                OutlinedButton(onClick = { reviewMode = false }) { Text("退出") }
+                            } else {
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Button(onClick = {
+                                        val practice =
+                                            ListeningPack(
+                                                "self-test",
+                                                "听辨自测",
+                                                "A2",
+                                                listOf(ListeningLine("word", "A", target, "")),
+                                            )
+                                        ListeningPlayback.start(ctx, practice)
+                                    }) { Text("▶ 播放声音") }
+                                    OutlinedButton(onClick = { answerVisible = true }) { Text("显示答案") }
+                                }
+                                if (answerVisible) {
+                                    Text(target, style = MaterialTheme.typography.headlineSmall)
+                                    Text("你首次听到时的识别情况：", style = MaterialTheme.typography.bodySmall)
+                                    FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        listOf(
+                                            "again" to "没认出",
+                                            "hard" to "很费力",
+                                            "good" to "认出",
+                                            "easy" to "立即认出",
+                                        ).forEach { (rating, label) ->
+                                            OutlinedButton(onClick = {
+                                                store.addReview(target, rating)
+                                                reviewWord = store.reviewCandidates().firstOrNull()
+                                                answerVisible = false
+                                            }) { Text(label) }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    item {
+                        HorizontalDivider()
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("内容与项目管理", modifier = Modifier.weight(1f),
+                                style = MaterialTheme.typography.titleSmall)
+                            TextButton(enabled = connected && !busy, onClick = {
+                                busy = true
+                                scope.launch {
+                                    try { message = github.refreshContentNow() }
+                                    finally { busy = false }
+                                }
+                            }) { Text("同步目录") }
+                            if (sitcomMode) {
+                                TextButton(enabled = connected && !busy, onClick = {
+                                    busy = true
+                                    scope.launch {
+                                        try { message = github.downloadAllSeries() }
+                                        finally { busy = false }
+                                    }
+                                }) { Text("补齐全部字幕") }
+                            }
+                        }
+                    }
+                    item {
+                        // Five real counters stay visible without a multi-line diagnostic log.
+                        val metrics = listOf(
+                            (if (sitcomMode) "分段" else "故事") to orderedPacks.size,
+                            "待传" to state.pending,
+                            "词汇" to state.saved,
+                            "待复习" to state.due,
+                            "待巩固" to state.unestablished,
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                            horizontalArrangement = Arrangement.spacedBy(3.dp),
+                        ) {
+                            metrics.forEachIndexed { i, (name, count) ->
+                                Column(
+                                    modifier = Modifier.weight(1f),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(1.dp),
+                                ) {
+                                    Text(
+                                        count.toString(),
+                                        style = MaterialTheme.typography.titleMedium,
+                                        color = if (i == 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                                    )
+                                    Text(
+                                        name,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                    )
+                                }
+                            }
+                        }
+                        if (status.contains("失败") || status.startsWith("正在") || status.startsWith("同步完成") || status.startsWith("未配置")) {
+                            Text(
+                                status,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (status.contains("失败")) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 2,
+                            )
+                        }
+                    }
+                    if (pack != null) {
+                        item {
+                            val metrics = store.learningMetrics()
+                            val dueCount = store.dueRetests().size
+                            val rate = metrics.firstPassRate?.let { it.toString() + "%" } ?: "数据不足"
+                            val retention = metrics.delayedRate?.let { it.toString() + "%" } ?: "待复查"
+                            val suggested = metrics.nextLevel(pack.level)
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text(
+                                    "真实学习：首次独立正确 $rate · 延迟保持 $retention · Raw " +
+                                        metrics.freeExpressions,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                ) {
+                                    if (dueCount > 0) {
+                                        Button(onClick = { delayedReviewOpen = true }) {
+                                            Text("隔天复查 $dueCount 句")
+                                        }
+                                    }
+                                    Text(
+                                        if (metrics.firstIndependentChecks >= 5) {
+                                            "建议难度 $suggested · 基于首次正确率"
+                                        } else {
+                                            "还需 " + (5 - metrics.firstIndependentChecks).coerceAtLeast(0) +
+                                                " 次独立答题评估难度"
+                                        },
+                                        style = MaterialTheme.typography.labelSmall,
+                                        modifier = Modifier.weight(1f),
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                    if (metrics.firstIndependentChecks >= 5) {
+                                        val suggestedPack = orderedPacks.firstOrNull {
+                                            it.level.equals(suggested, ignoreCase = true)
+                                        }
+                                        if (suggestedPack != null && suggestedPack.id != pack.id) {
+                                            TextButton(onClick = {
+                                                currentId = suggestedPack.id
+                                                recallMode = true
+                                                recallIndex = store.recallPosition(suggestedPack)
+                                                store.markPackUsed(suggestedPack)
+                                                ListeningPlayback.start(ctx, suggestedPack, recallIndex, oneShot = true)
+                                            }) { Text("练推荐") }
+                                        }
+                                    }
+                                }
+                                val personal = orderedPacks.filter { it.kind == "personal_drill" }
+                                if (personal.isNotEmpty()) {
+                                    val target = personal.firstOrNull { it.id != pack.id } ?: personal.first()
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    ) {
+                                        Text(
+                                            "🎯 个人错点专项 " + personal.size + " 份",
+                                            style = MaterialTheme.typography.labelMedium,
+                                            modifier = Modifier.weight(1f),
+                                        )
+                                        TextButton(onClick = {
+                                            currentId = target.id
+                                            recallMode = true
+                                            recallIndex = store.recallPosition(target)
+                                            store.markPackUsed(target)
+                                            ListeningPlayback.start(ctx, target, recallIndex, oneShot = true)
+                                        }) { Text("练习 " + target.level) }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    item {
+                        if (sitcomMode) {
+                            Text(
+                                "《破产姐妹》专辑 · 按季选集，字幕分段复述",
+                                style = MaterialTheme.typography.labelMedium,
+                            )
+                            FlowRow(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                                (1..6).forEach { number ->
+                                    FilterChip(
+                                        selected = sitcomSeason == number,
+                                        onClick = {
+                                            if (sitcomSeason != number) {
+                                                ListeningPlayback.stop(ctx)
+                                                sitcomSeason = number
+                                                currentId = null
+                                            }
+                                        },
+                                        label = { Text("第" + number + "季") },
+                                    )
+                                }
+                            }
+                            Text(
+                                "第" + sitcomSeason + "季 · 目录 " + seriesEpisodes.size +
+                                    " 集 / 已缓存 " + orderedPacks.size + " 段",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                    if (sitcomMode && seriesEpisodes.isEmpty()) {
+                        item {
+                            Text(
+                                "本季尚无已导入的字幕。请先用 English 仓库导入你有权使用的 SRT/VTT，之后点击右上角「同步文章」。",
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                    }
+                    if (sitcomMode && seriesEpisodes.isNotEmpty()) {
+                        items(seriesEpisodes, key = { "2bg-episode-" + it.season + "-" + it.episode }) { episode ->
+                            val loadedParts = episode.parts.mapNotNull { part ->
+                                state.packs.firstOrNull { it.id == part.id && it.kind == SITCOM_PACK_KIND }
+                            }
+                            val downloaded = loadedParts.size == episode.parts.size
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                                ),
+                                shape = RoundedCornerShape(12.dp),
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(episode.title, style = MaterialTheme.typography.titleSmall)
+                                        Text(
+                                            episode.parts.size.toString() + " 段 · " +
+                                                (if (downloaded) "已离线缓存" else "点击载入字幕"),
+                                            style = MaterialTheme.typography.labelSmall,
+                                        )
+                                    }
+                                    OutlinedButton(enabled = !busy, onClick = {
+                                        if (downloaded) {
+                                            val target = loadedParts.firstOrNull()
+                                            if (target != null) {
+                                                currentId = target.id
+                                                recallMode = true
+                                                recallIndex = store.recallPosition(target)
+                                                store.markPackUsed(target)
+                                                ListeningPlayback.start(ctx, target, recallIndex, oneShot = true)
+                                            }
+                                        } else if (!connected) {
+                                            showSettings = true
+                                            message = "请先配置 English GitHub PAT 后载入本集"
+                                        } else {
+                                            busy = true
+                                            scope.launch {
+                                                try {
+                                                    message = github.loadSeriesEpisode(episode)
+                                                    if (message.startsWith("已载入")) {
+                                                        val target = store.state.value.packs.firstOrNull {
+                                                            it.id == episode.parts.first().id
+                                                        }
+                                                        if (target != null) {
+                                                            currentId = target.id
+                                                            recallMode = true
+                                                            recallIndex = store.recallPosition(target)
+                                                            store.markPackUsed(target)
+                                                            ListeningPlayback.start(ctx, target, recallIndex, oneShot = true)
+                                                        }
+                                                    }
+                                                } finally {
+                                                    busy = false
+                                                }
+                                            }
+                                        }
+                                    }) {
+                                        Text(if (downloaded) "复述" else "下载")
+                                    }
+                                }
                             }
                         }
                     }
@@ -775,155 +961,6 @@ internal fun ListeningScreen(
                                                 style = MaterialTheme.typography.bodySmall,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                             )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    if (state.unestablished >= 100) {
-                        item {
-                            Card {
-                                Text(
-                                    "当前有 " + state.unestablished +
-                                        " 个尚未经过有效复习验证的词。建议优先复习；仍可继续收藏。",
-                                    Modifier.padding(12.dp),
-                                )
-                            }
-                        }
-                    }
-                    if (showSettings) {
-                        item {
-                            Card {
-                                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Column(Modifier.weight(1f)) {
-                                            Text("自然语音预缓存", style = MaterialTheme.typography.titleSmall)
-                                            Text("同步后自动下载，缓存缺失时可尝试本机语音",
-                                                style = MaterialTheme.typography.bodySmall)
-                                        }
-                                        Switch(checked = preferNatural, onCheckedChange = {
-                                            preferNatural = it
-                                            voicePreferences.edit().putBoolean("listening_natural_voice", it).apply()
-                                        })
-                                    }
-                                    Text("连接私有 z2846852/english 仓库", style = MaterialTheme.typography.titleSmall)
-                                    Text(
-                                        "PAT 仅在本机加密保存。每天首次打开时尝试同步学习事件和词汇记忆；换手机且本地词库为空时可恢复云端备份。",
-                                        style = MaterialTheme.typography.bodySmall,
-                                    )
-                                    if (!connected) {
-                                        OutlinedTextField(
-                                            value = pat,
-                                            onValueChange = { pat = it },
-                                            label = { Text("GitHub Fine-grained PAT") },
-                                            visualTransformation = PasswordVisualTransformation(),
-                                            singleLine = true,
-                                            modifier = Modifier.fillMaxWidth(),
-                                        )
-                                        Button(enabled = !busy && pat.isNotBlank(), onClick = {
-                                            busy = true
-                                            scope.launch {
-                                                try {
-                                                    github.connect(pat)
-                                                    connected = true
-                                                    pat = ""
-                                                    github.syncNow()
-                                                } catch (
-                                                    e: Exception,
-                                                ) {
-                                                    message = "连接失败：" + (e.message ?: "请检查权限")
-                                                } finally {
-                                                    busy = false
-                                                }
-                                            }
-                                        }) { Text("连接并同步") }
-                                    } else {
-                                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                            OutlinedButton(onClick = {
-                                                github.forgetToken()
-                                                connected = false
-                                            }) { Text("清除 PAT") }
-                                            Text("已连接", Modifier.padding(top = 10.dp))
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    item {
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Button(enabled = !busy && connected, onClick = {
-                                focusedReviewLine = null
-                                showUploadReview = true
-                                busy = true
-                                scope.launch {
-                                    try { message = github.refreshCloudReviewHistory() }
-                                    finally { busy = false }
-                                }
-                            }) { Text("审核并同步 GitHub") }
-                            if (busy) CircularProgressIndicator()
-                        }
-                        if (message.isNotBlank()) Text(message, style = MaterialTheme.typography.bodySmall)
-                        if (cacheProgress.total > 0 &&
-                            (cacheProgress.running || cacheProgress.complete < cacheProgress.total)) {
-                            Text(
-                                "语音缓存 ${cacheProgress.complete}/${cacheProgress.total}" +
-                                    (cacheProgress.warning?.let { " · ❗$it" } ?: ""),
-                                style = MaterialTheme.typography.bodySmall,
-                            )
-                        }
-                    }
-                    item {
-                        HorizontalDivider()
-                        Text(
-                            "听辨复习 · 从听懂开始",
-                            style = MaterialTheme.typography.titleSmall,
-                        )
-                        Text(
-                            "先盲听，再判断自己是否真正认出。听过很多次只代表接触过，不等于已经听懂。",
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                        if (!reviewMode) {
-                            Button(enabled = store.reviewCandidates().isNotEmpty(), onClick = {
-                                reviewWord = store.reviewCandidates().firstOrNull()
-                                answerVisible = false
-                                reviewMode = true
-                            }) { Text("开始听辨复习") }
-                        } else {
-                            val target = reviewWord
-                            if (target == null) {
-                                Text("当前待复习项目已经完成。")
-                                OutlinedButton(onClick = { reviewMode = false }) { Text("退出") }
-                            } else {
-                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    Button(onClick = {
-                                        val practice =
-                                            ListeningPack(
-                                                "self-test",
-                                                "听辨自测",
-                                                "A2",
-                                                listOf(ListeningLine("word", "A", target, "")),
-                                            )
-                                        ListeningPlayback.start(ctx, practice)
-                                    }) { Text("▶ 播放声音") }
-                                    OutlinedButton(onClick = { answerVisible = true }) { Text("显示答案") }
-                                }
-                                if (answerVisible) {
-                                    Text(target, style = MaterialTheme.typography.headlineSmall)
-                                    Text("你首次听到时的识别情况：", style = MaterialTheme.typography.bodySmall)
-                                    FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                        listOf(
-                                            "again" to "没认出",
-                                            "hard" to "很费力",
-                                            "good" to "认出",
-                                            "easy" to "立即认出",
-                                        ).forEach { (rating, label) ->
-                                            OutlinedButton(onClick = {
-                                                store.addReview(target, rating)
-                                                reviewWord = store.reviewCandidates().firstOrNull()
-                                                answerVisible = false
-                                            }) { Text(label) }
                                         }
                                     }
                                 }
