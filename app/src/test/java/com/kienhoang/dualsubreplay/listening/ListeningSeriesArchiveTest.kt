@@ -37,7 +37,7 @@ class ListeningSeriesArchiveTest {
         var loaded = 0
         val packs = ListeningSeriesArchive.readMissing(
             ByteArrayInputStream(contents), mapOf(path to id),
-        ) { loaded = it }
+) { count, _ -> loaded = count }
         assertEquals(1, loaded)
         assertEquals(id, packs.single().id)
         assertEquals("I can help.", packs.single().lines.single().en)
