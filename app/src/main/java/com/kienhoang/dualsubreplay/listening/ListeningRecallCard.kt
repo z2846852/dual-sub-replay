@@ -47,6 +47,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -99,6 +100,8 @@ internal fun ListeningRecallCard(
         mutableStateOf(if (progress.attempts > 0) progress.lastAnswer else null)
     }
     var revealed by remember(pack.id, line.id) { mutableIntStateOf(0) }
+    var showChinese by remember(pack.id, line.id) { mutableStateOf(false) }
+    val isSitcom = pack.kind == SITCOM_PACK_KIND
     var correctionPending by remember(pack.id, line.id) { mutableStateOf(false) }
     var advancePending by remember(pack.id, line.id) { mutableStateOf(false) }
     var showInsightEditor by remember(pack.id, line.id) { mutableStateOf(false) }
@@ -108,10 +111,11 @@ internal fun ListeningRecallCard(
     val checkedCurrent = lastChecked != null && lastChecked == answer
     val comparison =
         remember(line.en, lastChecked) {
-            lastChecked?.let { ListeningRecallCheck.compare(line.en, it) }
+            lastChecked?.let { ListeningRecallCheck.compare(line.en, it, isSitcom) }
         }
     val canCheck = answer.isNotBlank() && !playing
     val verifiedPass = progress.passed && checkedCurrent
+    val verifiedSoftPass = verifiedPass && progress.softPassed
 
     fun checkAnswer() {
         if (!canCheck || (progress.passed && checkedCurrent)) return
@@ -120,7 +124,8 @@ internal fun ListeningRecallCard(
         lastChecked = answer
         revealed = 0
         correctionPending = false
-        advancePending = perfect
+        // Sitcom practice is deliberately learner-paced, even with global auto-next enabled.
+        advancePending = perfect && !isSitcom
     }
 
     // Passing is automatic; incorrect partial dictation never creates an attempt or a hint.
@@ -253,13 +258,17 @@ internal fun ListeningRecallCard(
                 ) { Text(stringResource(R.string.listening_recall_check)) }
                 if (progress.attempts > 0) {
                     Text(
-                        if (progress.passed) {
+                        if (verifiedSoftPass) {
+                            "宽松通过 · 人名/俚语已标黄"
+                        } else if (progress.passed) {
                             stringResource(R.string.listening_recall_perfect)
                         } else {
                             stringResource(R.string.listening_recall_failed, progress.attempts)
                         },
                         color =
-                            if (progress.passed) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.error,
+                            if (verifiedSoftPass) Color(0xFFB48A00)
+                            else if (progress.passed) MaterialTheme.colorScheme.tertiary
+                            else MaterialTheme.colorScheme.error,
                         style = MaterialTheme.typography.labelMedium,
                         modifier = Modifier.weight(1.5f).testTag("recall_result"),
                     )
@@ -321,10 +330,10 @@ internal fun ListeningRecallCard(
                     contentPadding = PaddingValues(horizontal = 5.dp, vertical = 0.dp),
                 ) { Text(stringResource(R.string.listening_recall_replay), style = MaterialTheme.typography.labelMedium, maxLines = 1) }
                 OutlinedButton(
-                    enabled = line.zh.isNotBlank() && progress.mayShowMeaning() && checkedCurrent && comparison?.perfect == false,
+                    enabled = line.zh.isNotBlank(),
                     onClick = {
-                        revealed = 1
-                        onHint(1)
+                        showChinese = !showChinese
+                        if (showChinese) onHint(1)
                     },
                     modifier = Modifier.weight(1f).height(42.dp).testTag("recall_show_meaning"),
                     shape = RoundedCornerShape(12.dp),
@@ -348,7 +357,7 @@ internal fun ListeningRecallCard(
                 )
                 RecallDifferenceRow(comparison, expected = false, onTargetTap = {})
             }
-            if (revealed >= 1 && line.zh.isNotBlank()) {
+            if (showChinese && line.zh.isNotBlank()) {
                 Text(
                     line.zh,
                     modifier = Modifier.fillMaxWidth().testTag("recall_meaning_text"),
@@ -356,7 +365,7 @@ internal fun ListeningRecallCard(
                     style = MaterialTheme.typography.bodyMedium,
                 )
             }
-            if (revealed >= 2) {
+            if (revealed >= 2 || verifiedSoftPass) {
                 Text(
                     stringResource(R.string.listening_recall_expected),
                     style = MaterialTheme.typography.labelMedium,
@@ -367,7 +376,8 @@ internal fun ListeningRecallCard(
                     Text(line.en)
                 }
                 Text(
-                    stringResource(R.string.listening_recall_note),
+                    if (verifiedSoftPass) "黄色仅代表可省略词；请核对原句，可手动点「下一句」或再次复述。"
+                    else stringResource(R.string.listening_recall_note),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -441,18 +451,21 @@ internal fun ListeningRecallCard(
                 progressByLine.forEachIndexed { i, status ->
                     val bg =
                         when {
+                            status.softPassed -> Color(0xFFEAC34A)
                             status.passed -> MaterialTheme.colorScheme.tertiary
                             status.failed -> MaterialTheme.colorScheme.error
                             else -> MaterialTheme.colorScheme.surfaceVariant
                         }
                     val fg =
                         when {
+                            status.softPassed -> Color(0xFF312900)
                             status.passed -> MaterialTheme.colorScheme.onTertiary
                             status.failed -> MaterialTheme.colorScheme.onError
                             else -> MaterialTheme.colorScheme.onSurfaceVariant
                         }
                     val label =
                         when {
+                            status.softPassed -> "宽松通过"
                             status.passed -> stringResource(R.string.listening_recall_status_passed)
                             status.failed -> stringResource(R.string.listening_recall_status_failed)
                             else -> stringResource(R.string.listening_recall_status_new)
@@ -495,15 +508,18 @@ internal fun ListeningRecallCard(
                 horizontalArrangement = Arrangement.spacedBy(5.dp),
             ) {
                 Checkbox(
-                    checked = autoNext,
+                    checked = autoNext && !isSitcom,
+                    enabled = !isSitcom,
                     onCheckedChange = onSetAutoNext,
                     modifier = Modifier.size(40.dp).testTag("recall_auto_next"),
                 )
                 Text(
-                    stringResource(R.string.listening_recall_auto_next),
+                    if (isSitcom) "专题手动下一句" else stringResource(R.string.listening_recall_auto_next),
                     style = MaterialTheme.typography.labelSmall,
                     maxLines = 2,
-                    modifier = Modifier.weight(1f).clickable { onSetAutoNext(!autoNext) },
+                    modifier = Modifier.weight(1f).then(
+                        if (isSitcom) Modifier else Modifier.clickable { onSetAutoNext(!autoNext) }
+                    ),
                 )
                 OutlinedButton(
                     onClick = {
@@ -590,6 +606,9 @@ private fun RecallDifferenceRow(
     val errorColor = MaterialTheme.colorScheme.error
     val regularColor = MaterialTheme.colorScheme.onSurface
     val errorBackground = MaterialTheme.colorScheme.errorContainer
+    val dark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+    val optionalColor = if (dark) Color(0xFFFFD54F) else Color(0xFF8B6500)
+    val optionalBackground = if (dark) Color(0x665C4A00) else Color(0x40FFDC62)
     val missing = stringResource(R.string.listening_recall_missing)
     FlowRow(
         modifier = Modifier.fillMaxWidth(),
@@ -604,12 +623,22 @@ private fun RecallDifferenceRow(
                 val coloredModifier =
                     Modifier
                         .clip(RoundedCornerShape(5.dp))
-                        .background(if (part.matches) Color.Transparent else errorBackground)
+                        .background(
+                            when {
+                                part.matches -> Color.Transparent
+                                part.optionalOmission -> optionalBackground
+                                else -> errorBackground
+                            },
+                        )
                 val wordModifier = coloredModifier.then(clickable).padding(horizontal = 3.dp, vertical = 2.dp)
                 Text(
                     text = shown,
                     modifier = wordModifier,
-                    color = if (part.matches) regularColor else errorColor,
+                    color = when {
+                        part.matches -> regularColor
+                        part.optionalOmission -> optionalColor
+                        else -> errorColor
+                    },
                     style = MaterialTheme.typography.bodyLarge,
                 )
             }
