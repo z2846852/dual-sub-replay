@@ -87,6 +87,7 @@ internal data class ListeningSnapshot(
     val unestablished: Int,
     val deviceId: String,
     val recallRevision: Int,
+    val seriesEpisodes: List<ListeningSeriesEpisode>,
 )
 
 /** Uses AtomicFile so a crash cannot destroy a half-written learning history. */
@@ -114,6 +115,10 @@ internal class ListeningStore(
     private fun snapshot(): ListeningSnapshot {
         val packsArray = root.optJSONArray("packs") ?: JSONArray()
         val events = root.optJSONArray("events") ?: JSONArray()
+        val catalog = root.optJSONArray("series_catalog") ?: JSONArray()
+        val seriesEpisodes = (0 until catalog.length()).mapNotNull {
+            runCatching { ListeningSeriesEpisode.fromJson(catalog.getJSONObject(it)) }.getOrNull()
+        }
         val packs =
             (0 until packsArray.length()).mapNotNull {
                 runCatching { ListeningPack.fromJson(packsArray.getJSONObject(it)) }.getOrNull()
@@ -147,6 +152,7 @@ internal class ListeningStore(
             unsettled,
             root.optString("device_id"),
             root.optInt("recall_revision"),
+            seriesEpisodes,
         )
     }
 
@@ -936,6 +942,14 @@ internal class ListeningStore(
         val all = JSONArray()
         byId.values.forEach { all.put(it.toJson()) }
         root.put("packs", all)
+        persist()
+    }
+
+    /** Cache only lightweight episode metadata; subtitle texts stay on-demand. */
+    @Synchronized fun putSeriesEpisodes(episodes: List<ListeningSeriesEpisode>) {
+        root.put("series_catalog", JSONArray().apply {
+            episodes.forEach { put(it.toJson()) }
+        })
         persist()
     }
 }
