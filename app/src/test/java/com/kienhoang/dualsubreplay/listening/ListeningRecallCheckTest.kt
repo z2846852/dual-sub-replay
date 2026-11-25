@@ -100,6 +100,73 @@ class ListeningRecallCheckTest {
     }
 
     @Test
+    fun sitcomMissingNameAndSlangAreYellowEligible() {
+        val comparison = ListeningRecallCheck.compare(
+            "Max, you are freaking amazing, Caroline!",
+            "You are amazing!",
+            ignoreOptional = true,
+        )
+        assertFalse(comparison.perfect)
+        assertTrue(comparison.softPass)
+        assertEquals(3, comparison.optionalOmissions.size)
+        assertEquals(setOf("Max", "freaking", "Caroline"), comparison.optionalOmissions.toSet())
+        assertEquals(0, comparison.blockingDifferences)
+    }
+
+    @Test
+    fun ordinaryContentDoesNotWaiveTheSameNames() {
+        val result = ListeningRecallCheck.compare(
+            "Max, you are freaking amazing!",
+            "You are amazing!",
+        )
+        assertFalse(result.softPass)
+        assertFalse(result.perfect)
+        assertTrue(result.blockingDifferences > 0)
+    }
+
+    @Test
+    fun sitcomRealErrorsStillBlockPassing() {
+        val result = ListeningRecallCheck.compare(
+            "Max, you are freaking amazing!",
+            "You is amazing!",
+            ignoreOptional = true,
+        )
+        assertFalse(result.perfect)
+        assertFalse(result.softPass)
+        assertTrue(result.blockingDifferences > 0)
+    }
+
+    @Test
+    fun slangNeverMakesEmptyAnswerOrAllOptionalSentencePass() {
+        val empty = ListeningRecallCheck.compare("Max is here", "", ignoreOptional = true)
+        assertFalse(empty.softPass)
+        val allIgnored = ListeningRecallCheck.compare("Max, Caroline!", "", ignoreOptional = true)
+        assertFalse(allIgnored.softPass)
+    }
+
+    @Test
+    fun commonUsefulColloquialismsRemainMandatory() {
+        val result = ListeningRecallCheck.compare(
+            "I'm gonna help Max",
+            "I am help",
+            ignoreOptional = true,
+        )
+        assertFalse(result.softPass)
+        assertTrue(result.blockingDifferences > 0)
+    }
+
+    @Test
+    fun replacingANameWithAnotherWordIsNotAnOptionalOmission() {
+        val result = ListeningRecallCheck.compare(
+            "Max is coming",
+            "Alex is coming",
+            ignoreOptional = true,
+        )
+        assertFalse(result.softPass)
+        assertTrue(result.blockingDifferences > 0)
+    }
+
+    @Test
     fun emptyAnswerShowsAllMissing() {
         val result = ListeningRecallCheck.compare("Try again", "")
         assertEquals(2, result.differences)
