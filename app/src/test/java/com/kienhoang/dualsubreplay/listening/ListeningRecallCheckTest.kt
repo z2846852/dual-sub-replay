@@ -167,6 +167,17 @@ class ListeningRecallCheckTest {
     }
 
     @Test
+    fun dialectContractionsAreKeptWholeAndCanBeOmittedInSitcom() {
+        val result = ListeningRecallCheck.compare(
+            "Y'all, Max ain't wrong!",
+            "Max wrong!",
+            ignoreOptional = true,
+        )
+        assertTrue(result.softPass)
+        assertEquals(setOf("Y'all", "ain't"), result.optionalOmissions.toSet())
+    }
+
+    @Test
     fun emptyAnswerShowsAllMissing() {
         val result = ListeningRecallCheck.compare("Try again", "")
         assertEquals(2, result.differences)
