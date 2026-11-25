@@ -19,6 +19,7 @@ import java.io.ByteArrayOutputStream
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
+import java.io.InputStream
 import java.security.KeyStore
 import java.time.Instant
 import java.time.LocalDate
@@ -617,6 +618,100 @@ internal class ListeningGitHub(
         }
         require(all.map { it.season to it.episode }.distinct().size == all.size)
         return all.sortedWith(compareBy<ListeningSeriesEpisode> { it.season }.thenBy { it.episode })
+    }
+
+
+    /**
+     * One-click, resumable subtitle-only cache. A GitHub archive costs one request instead of
+     * hundreds of Contents API calls. Existing packs are skipped, and no 60k-line TTS job is queued.
+     */
+    suspend fun downloadAllSeries(): String =
+        mutex.withLock {
+            withContext(Dispatchers.IO) {
+                try {
+                    val token = vault.read()
+                        ?: return@withContext "请先连接 English GitHub PAT"
+                    var episodes = store.state.value.seriesEpisodes
+                    if (episodes.isEmpty()) {
+                        _status.value = "正在获取六季目录…"
+                        verify(token)
+                        episodes = pullSeriesEpisodes(token)
+                        store.putSeriesEpisodes(episodes)
+                    }
+                    val all = episodes.flatMap { it.parts }
+                    if (all.isEmpty()) {
+                        val message = "专题目录暂无可下载的字幕"
+                        _status.value = message
+                        return@withContext message
+                    }
+                    val cached = store.state.value.packs
+                        .filter { it.kind == SITCOM_PACK_KIND }
+                        .mapTo(HashSet()) { it.id }
+                    val missing = all.filter { it.id !in cached }
+                    if (missing.isEmpty()) {
+                        val message = "全部字幕已离线缓存：${episodes.size} 集 / ${all.size} 段"
+                        _status.value = message
+                        return@withContext message
+                    }
+                    require(missing.map { it.path }.distinct().size == missing.size)
+                    _status.value = "正在一次性下载全部剧集字幕：还缺 ${missing.size} 段…"
+                    val expected = missing.associate { it.path to it.id }
+                    val loaded = withSeriesArchive(token) { input ->
+                        ListeningSeriesArchive.readMissing(input, expected) { count ->
+                            if (count == 1 || count % 20 == 0 || count == missing.size) {
+                                _status.value = "正在缓存字幕 ${count}/${missing.size} 段"
+                            }
+                        }
+                    }
+                    // Commit only after verifying that the complete missing set was received.
+                    store.putPacks(loaded)
+                    val message = "全部字幕已下载：${episodes.size} 集、${all.size} 段；仅语音播放时按需缓存音频"
+                    _status.value = message
+                    message
+                } catch (error: Exception) {
+                    val message = "字幕批量下载失败：" + safeError(error) + "。已缓存的句子不会丢失，重新进入专题可重试"
+                    _status.value = message
+                    message
+                }
+            }
+        }
+
+    /** GitHub responds with a short-lived private codeload link. Do not forward the PAT to it. */
+    private fun <T> withSeriesArchive(token: String, consume: (InputStream) -> T): T {
+        val api = URL(base + "/zipball/main").openConnection() as HttpURLConnection
+        api.instanceFollowRedirects = false
+        api.requestMethod = "GET"
+        api.connectTimeout = 20_000
+        api.readTimeout = 60_000
+        api.setRequestProperty("Authorization", "Bearer " + token)
+        api.setRequestProperty("Accept", "application/vnd.github+json")
+        api.setRequestProperty("X-GitHub-Api-Version", "2022-11-28")
+        try {
+            val code = api.responseCode
+            if (code in 200..299) return api.inputStream.use(consume)
+            if (code !in 301..303 && code != 307 && code != 308) {
+                throw GitHubHttpException(code)
+            }
+            val location = api.getHeaderField("Location")
+                ?: error("GitHub ZIP 下载未返回跳转地址")
+            val target = URL(location)
+            require(target.protocol == "https" && target.host == "codeload.github.com") {
+                "拒绝不可信的字幕归档跳转域名"
+            }
+            val download = target.openConnection() as HttpURLConnection
+            download.requestMethod = "GET"
+            download.connectTimeout = 20_000
+            download.readTimeout = 90_000
+            try {
+                val downloadedCode = download.responseCode
+                if (downloadedCode !in 200..299) throw GitHubHttpException(downloadedCode)
+                return download.inputStream.use(consume)
+            } finally {
+                download.disconnect()
+            }
+        } finally {
+            api.disconnect()
+        }
     }
 
     /** Download one episode's sections on demand, preserving existing recalled lines offline. */
