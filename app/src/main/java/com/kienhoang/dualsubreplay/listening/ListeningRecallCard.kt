@@ -350,7 +350,11 @@ internal fun ListeningRecallCard(
                     modifier = Modifier.weight(1f).height(42.dp).testTag("recall_show_meaning"),
                     shape = RoundedCornerShape(12.dp),
                     contentPadding = PaddingValues(horizontal = 5.dp, vertical = 0.dp),
-                ) { Text(stringResource(R.string.listening_recall_show_meaning), style = MaterialTheme.typography.labelMedium, maxLines = 1) }
+                ) { Text(
+                    if (showChinese) "隐藏中文" else stringResource(R.string.listening_recall_show_meaning),
+                    style = MaterialTheme.typography.labelMedium,
+                    maxLines = 1,
+                ) }
                 OutlinedButton(
                     onClick = {
                         revealed = 2
