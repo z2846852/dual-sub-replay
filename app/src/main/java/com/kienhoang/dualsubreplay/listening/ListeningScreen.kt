@@ -100,8 +100,16 @@ internal fun ListeningScreen(
     val status by github.status.collectAsStateWithLifecycle()
     val playback by ListeningPlayback.state.collectAsStateWithLifecycle()
     var currentId by remember { mutableStateOf<String?>(null) }
+    var sitcomMode by remember { mutableStateOf(false) }
+    var sitcomSeason by remember { mutableStateOf(1) }
     val packSort = store.recallSort()
     val orderedPacks = sortListeningPacks(state.packs, packSort, store.recallRecentUsage())
+        .filter { candidate ->
+            if (!sitcomMode) candidate.kind != SITCOM_PACK_KIND else
+                candidate.kind == SITCOM_PACK_KIND &&
+                    candidate.id.startsWith("2bg-s%02d".format(sitcomSeason))
+        }
+    val seriesEpisodes = state.seriesEpisodes.filter { it.season == sitcomSeason }
     val pack = orderedPacks.firstOrNull { it.id == currentId } ?: orderedPacks.firstOrNull()
     var word by remember { mutableStateOf<String?>(null) }
     var selectedLine by remember { mutableStateOf<ListeningLine?>(null) }
@@ -172,7 +180,7 @@ internal fun ListeningScreen(
                     item {
                         // Five real counters stay visible without a multi-line diagnostic log.
                         val metrics = listOf(
-                            "故事" to state.packs.size,
+                            (if (sitcomMode) "分段" else "故事") to orderedPacks.size,
                             "待传" to state.pending,
                             "词汇" to state.saved,
                             "待复习" to state.due,
@@ -209,6 +217,140 @@ internal fun ListeningScreen(
                                 color = if (status.contains("失败")) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
                                 maxLines = 2,
                             )
+                        }
+                    }
+                    item {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            FilterChip(
+                                selected = !sitcomMode,
+                                onClick = {
+                                    if (sitcomMode) {
+                                        ListeningPlayback.stop(ctx)
+                                        sitcomMode = false
+                                        currentId = null
+                                        showText = false
+                                    }
+                                },
+                                label = { Text("日常课程") },
+                            )
+                            FilterChip(
+                                selected = sitcomMode,
+                                onClick = {
+                                    if (!sitcomMode) {
+                                        ListeningPlayback.stop(ctx)
+                                        sitcomMode = true
+                                        currentId = null
+                                        showText = false
+                                    }
+                                },
+                                label = { Text("🎬 破产姐妹") },
+                            )
+                        }
+                        if (sitcomMode) {
+                            Text(
+                                "《破产姐妹》专辑 · 按季选集，字幕分段复述",
+                                style = MaterialTheme.typography.labelMedium,
+                            )
+                            FlowRow(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                                (1..6).forEach { number ->
+                                    FilterChip(
+                                        selected = sitcomSeason == number,
+                                        onClick = {
+                                            if (sitcomSeason != number) {
+                                                ListeningPlayback.stop(ctx)
+                                                sitcomSeason = number
+                                                currentId = null
+                                            }
+                                        },
+                                        label = { Text("第" + number + "季") },
+                                    )
+                                }
+                            }
+                            Text(
+                                "第" + sitcomSeason + "季 · 目录 " + seriesEpisodes.size +
+                                    " 集 / 已缓存 " + orderedPacks.size + " 段",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                    if (sitcomMode && seriesEpisodes.isEmpty()) {
+                        item {
+                            Text(
+                                "本季尚无已导入的字幕。请先用 English 仓库导入你有权使用的 SRT/VTT，之后点击右上角「同步文章」。",
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                    }
+                    if (sitcomMode && seriesEpisodes.isNotEmpty()) {
+                        items(seriesEpisodes, key = { "2bg-episode-" + it.season + "-" + it.episode }) { episode ->
+                            val loadedParts = episode.parts.mapNotNull { part ->
+                                state.packs.firstOrNull { it.id == part.id && it.kind == SITCOM_PACK_KIND }
+                            }
+                            val downloaded = loadedParts.size == episode.parts.size
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                                ),
+                                shape = RoundedCornerShape(12.dp),
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(episode.title, style = MaterialTheme.typography.titleSmall)
+                                        Text(
+                                            episode.parts.size.toString() + " 段 · " +
+                                                (if (downloaded) "已离线缓存" else "点击载入字幕"),
+                                            style = MaterialTheme.typography.labelSmall,
+                                        )
+                                    }
+                                    OutlinedButton(enabled = !busy, onClick = {
+                                        if (downloaded) {
+                                            val target = loadedParts.firstOrNull()
+                                            if (target != null) {
+                                                currentId = target.id
+                                                recallMode = true
+                                                recallIndex = store.recallPosition(target)
+                                                store.markPackUsed(target)
+                                                ListeningPlayback.start(ctx, target, recallIndex, oneShot = true)
+                                            }
+                                        } else if (!connected) {
+                                            showSettings = true
+                                            message = "请先配置 English GitHub PAT 后载入本集"
+                                        } else {
+                                            busy = true
+                                            scope.launch {
+                                                try {
+                                                    message = github.loadSeriesEpisode(episode)
+                                                    if (message.startsWith("已载入")) {
+                                                        val target = store.state.value.packs.firstOrNull {
+                                                            it.id == episode.parts.first().id
+                                                        }
+                                                        if (target != null) {
+                                                            currentId = target.id
+                                                            recallMode = true
+                                                            recallIndex = store.recallPosition(target)
+                                                            store.markPackUsed(target)
+                                                            ListeningPlayback.start(ctx, target, recallIndex, oneShot = true)
+                                                        }
+                                                    }
+                                                } finally {
+                                                    busy = false
+                                                }
+                                            }
+                                        }
+                                    }) {
+                                        Text(if (downloaded) "复述" else "下载")
+                                    }
+                                }
+                            }
                         }
                     }
                     if (pack != null) {
@@ -457,10 +599,11 @@ internal fun ListeningScreen(
                             }
                         }
                     }
-                    if (state.packs.isEmpty()) {
+                    if (orderedPacks.isEmpty()) {
                         item {
                             Text(
-                                stringResource(R.string.listening_recall_no_stories),
+                                if (sitcomMode) "该季尚无已缓存的字幕分段，请先从上方选集下载。" else
+                                    stringResource(R.string.listening_recall_no_stories),
                                 style = MaterialTheme.typography.bodyMedium,
                             )
                         }
