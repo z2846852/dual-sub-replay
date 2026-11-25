@@ -262,7 +262,7 @@ internal class ListeningStore(
             rebuilt = rebuilt.hint(item.optInt("hint_level"))
             rebuilt = rebuilt.check(
                 answer,
-                ListeningRecallCheck.compare(reference, answer),
+                ListeningRecallCheck.compare(reference, answer, pack.kind == SITCOM_PACK_KIND),
                 item.optBoolean("recognition_correction"),
             )
         }
@@ -826,6 +826,7 @@ internal class ListeningStore(
         return RecallLineProgress(
             attempts = item.optInt("attempts").coerceAtLeast(0),
             passed = item.optBoolean("passed"),
+            softPassed = item.optBoolean("soft_passed"),
             firstTryPassed = item.optBoolean("first_try_passed"),
             hintLevel = item.optInt("hint_level").coerceIn(0, 2),
             firstAnswer = item.optString("first_answer"),
@@ -882,7 +883,7 @@ internal class ListeningStore(
         recognitionCorrection: Boolean,
     ) {
         val before = recallProgress(pack, line)
-        val result = ListeningRecallCheck.compare(line.en, answer)
+        val result = ListeningRecallCheck.compare(line.en, answer, pack.kind == SITCOM_PACK_KIND)
         val after = before.check(answer.take(1000), result, recognitionCorrection)
         putRecall(pack, line, after)
         if (after.passed && !before.passed) initializeRetestIfNeeded(pack, line)
@@ -890,6 +891,8 @@ internal class ListeningStore(
         events.put(
             event("recall_checked", "", pack.id, line.id)
                 .put("passed", after.passed)
+                .put("soft_passed", after.softPassed)
+                .put("optional_omissions", JSONArray(result.optionalOmissions))
                 .put("attempt", after.attempts)
                 .put("first_try_passed", after.firstTryPassed)
                 .put("hint_level", after.hintLevel)
@@ -917,6 +920,7 @@ internal class ListeningStore(
                 .put("reference", line.en)
                 .put("attempts", progress.attempts)
                 .put("passed", progress.passed)
+                .put("soft_passed", progress.softPassed)
                 .put("first_try_passed", progress.firstTryPassed)
                 .put("hint_level", progress.hintLevel)
                 .put("first_answer", progress.firstAnswer)
