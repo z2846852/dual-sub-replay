@@ -723,6 +723,7 @@ internal fun ListeningScreen(
                                     ) {
                                         statuses.forEach { result ->
                                             val color = when {
+                                                result.softPassed -> androidx.compose.ui.graphics.Color(0xFFEAC34A)
                                                 result.passed -> MaterialTheme.colorScheme.tertiary
                                                 result.failed -> MaterialTheme.colorScheme.error
                                                 else -> MaterialTheme.colorScheme.surfaceVariant
