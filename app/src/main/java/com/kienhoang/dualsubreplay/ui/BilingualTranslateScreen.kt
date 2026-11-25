@@ -43,6 +43,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -87,7 +88,7 @@ internal fun bilingualSourceLanguage(text: String): String =
     }
 
 /** Quick editor calls one Google request, not the subtitle engine's multi-second retry queue. */
-private suspend fun bilingualTranslate(
+internal suspend fun bilingualTranslate(
     google: GoogleWebTranslator,
     local: OnDeviceTranslator,
     source: String,
@@ -106,7 +107,7 @@ private suspend fun bilingualTranslate(
     return local.translateSingle(source, target, text) to true
 }
 
-private data class BilingualWordPick(
+internal data class BilingualWordPick(
     val word: String,
     val language: String,
 )
@@ -118,6 +119,8 @@ internal fun BilingualTranslateScreen(
     onClose: () -> Unit,
 ) {
     val snackbar = remember { SnackbarHostState() }
+    var tripleMode by rememberSaveable { mutableStateOf(false) }
+    val savedEditors = rememberSaveableStateHolder()
     Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(Modifier.fillMaxSize()) {
             Scaffold(
@@ -126,7 +129,11 @@ internal fun BilingualTranslateScreen(
                         Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text("即时中英互译", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                        Text("即时翻译", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                        TextButton(
+                            onClick = { tripleMode = !tripleMode },
+                            modifier = Modifier.testTag("translation_mode_toggle"),
+                        ) { Text(if (tripleMode) "双实例" else "一翻三") }
                         IconButton(onClick = onClose) {
                             Icon(Icons.Default.Close, contentDescription = "关闭翻译")
                         }
@@ -142,9 +149,17 @@ internal fun BilingualTranslateScreen(
                         .padding(horizontal = 12.dp, vertical = 2.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
-                    BilingualTranslatePane(vocabulary, snackbar)
-                    HorizontalDivider()
-                    BilingualTranslatePane(vocabulary, snackbar)
+                    if (tripleMode) {
+                        savedEditors.SaveableStateProvider("triple") {
+                            TripleTranslatePane(vocabulary, snackbar)
+                        }
+                    } else {
+                        savedEditors.SaveableStateProvider("dual") {
+                            BilingualTranslatePane(vocabulary, snackbar)
+                            HorizontalDivider()
+                            BilingualTranslatePane(vocabulary, snackbar)
+                        }
+                    }
                 }
             }
         }
@@ -520,7 +535,7 @@ private fun BilingualTranslatePane(
  * the bundled Chinese dictionary when available and falls back to individual Han characters.
  */
 @Composable
-private fun BilingualInteractiveText(
+internal fun BilingualInteractiveText(
     text: String,
     language: String,
     selected: BilingualWordPick?,
