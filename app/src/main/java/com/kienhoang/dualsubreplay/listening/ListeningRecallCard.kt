@@ -124,18 +124,18 @@ internal fun ListeningRecallCard(
         lastChecked = answer
         revealed = 0
         correctionPending = false
-        // Sitcom practice is deliberately learner-paced, even with global auto-next enabled.
-        advancePending = perfect && !isSitcom
+        // A fully correct sitcom answer advances; yellow-only soft passes stay on this line.
+        advancePending = perfect
     }
 
     // Passing is automatic; incorrect partial dictation never creates an attempt or a hint.
     LaunchedEffect(answer, playing, line.en) {
-        if (shouldAutoPassRecall(answer, line.en, playing, progress.passed)) {
+        if (shouldAutoPassRecall(answer, line.en, playing, progress.passed && !progress.softPassed)) {
             checkAnswer()
         }
     }
     LaunchedEffect(advancePending, autoNext, line.id) {
-        if (advancePending && autoNext) {
+        if (advancePending && (autoNext || isSitcom)) {
             delay(650)
             advancePending = false
             onSaveDraft(answer)
@@ -524,13 +524,13 @@ internal fun ListeningRecallCard(
                 horizontalArrangement = Arrangement.spacedBy(5.dp),
             ) {
                 Checkbox(
-                    checked = autoNext && !isSitcom,
+                    checked = autoNext || isSitcom,
                     enabled = !isSitcom,
                     onCheckedChange = onSetAutoNext,
                     modifier = Modifier.size(40.dp).testTag("recall_auto_next"),
                 )
                 Text(
-                    if (isSitcom) "专题手动下一句" else stringResource(R.string.listening_recall_auto_next),
+                    if (isSitcom) "全绿自动下一句 · 黄色停留" else stringResource(R.string.listening_recall_auto_next),
                     style = MaterialTheme.typography.labelSmall,
                     maxLines = 2,
                     modifier = Modifier.weight(1f).then(
