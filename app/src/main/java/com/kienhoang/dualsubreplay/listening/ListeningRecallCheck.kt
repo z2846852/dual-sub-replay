@@ -46,15 +46,18 @@ internal object ListeningRecallCheck {
     /** Restricted to the sitcom study pack; never infer a proper name from sentence-initial caps. */
     private val optionalNames = setOf(
         "max", "caroline", "han", "oleg", "sophie", "earl", "andy",
-        "chestnut", "peach", "darius", "dake", "deke", "candy", "johnny",
+        "chestnut", "peach", "darius", "deke", "candy", "johnny",
         "luis", "nash", "randy", "jennifer", "martha", "bebe",
-        "shoshanna", "sandra", "sasha", "hanlee",
+        "shoshanna", "sandra", "sasha", "channing", "bobby", "barbara",
+        "nicolas", "stewart", "nancy", "jessica", "joe", "kim",
+        "mary", "john", "brian", "bob", "lawrence", "patrick",
     )
     /** Do not waive useful conversational forms such as gonna, wanna, gotta, ain't. */
     private val optionalSlang = setOf(
         "bitch", "bitches", "bullshit", "crap", "crappy", "asshole",
         "jackass", "friggin", "frigging", "freakin", "freaking",
         "fucking", "fuck", "shitty", "shit", "douche", "douchebag",
+        "ain't", "y'all", "yo", "dude", "bro", "uh", "uhh", "um", "umm", "erm",
     )
 
     private val isContractions =
@@ -112,7 +115,10 @@ internal object ListeningRecallCheck {
         val wanted = words(expected)
         val said = words(actual)
         val optionalExpected = wanted.map { word ->
-            ignoreOptional && (word.key in optionalNames || word.key in optionalSlang)
+            ignoreOptional && (
+                word.key in optionalNames || word.key in optionalSlang ||
+                    (word.key.endsWith("'s") && word.key.removeSuffix("'s") in optionalNames)
+            )
         }
         val distances = Array(wanted.size + 1) { IntArray(said.size + 1) }
         for (i in wanted.indices) {
