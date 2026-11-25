@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -34,7 +33,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -103,7 +101,6 @@ internal fun TripleTranslatePane(
     val pronouncer = rememberWordPronouncer()
     val google = remember(context) { GoogleWebTranslator(File(context.cacheDir, "google-translations")) }
     val local = remember(context) { OnDeviceTranslator(File(context.cacheDir, "subtitle-translations")) }
-    val savedWords by vocabulary.words.collectAsState()
 
     var input by rememberSaveable { mutableStateOf("") }
     var targetLanguage by rememberSaveable { mutableStateOf("th") }
@@ -316,7 +313,11 @@ internal fun TripleTranslatePane(
         TripleResultCard(
             title = "$targetName · 经$pivotName",
             language = targetLanguage,
-            result = viaResult,
+            result = when {
+                pivotResult.error != null -> QuickResult(error = "基础译文失败，无法进行转译")
+                pivotResult.loading -> QuickResult(loading = true)
+                else -> viaResult
+            },
             selected = selectedWord,
             onSpeak = { pronouncer.speak(it, targetLanguage) },
             onCopy = ::copy,
@@ -337,7 +338,7 @@ internal fun TripleTranslatePane(
             languageQuery.isBlank() || option.code.contains(languageQuery, ignoreCase = true) ||
                 option.name.contains(languageQuery, ignoreCase = true) ||
                 chineseLanguageName(option.code).contains(languageQuery, ignoreCase = true)
-        }.sortedWith(compareBy({ priority.indexOf(it.code).let { index -> if (index < 0) 100 else index } }, { it.name }))
+        }.sortedWith(compareBy<TranslationLanguageOption>({ priority.indexOf(it.code).let { index -> if (index < 0) 100 else index } }, { it.name }))
         AlertDialog(
             onDismissRequest = { showLanguages = false },
             title = { Text("目标语言") },
@@ -427,8 +428,8 @@ private fun TripleResultCard(
                 if (result.loading) {
                     CircularProgressIndicator(modifier = Modifier.size(14.dp))
                 }
-                if (result.offline && result.text.isNotBlank()) {
-                    Text("本机", style = MaterialTheme.typography.labelSmall)
+                if (result.text.isNotBlank()) {
+                    Text(if (result.offline) "本机" else "Google", style = MaterialTheme.typography.labelSmall)
                 }
                 TranslationCornerButton("朗读译文", result.text.isNotBlank(), { onSpeak(result.text) }, copy = false)
                 TranslationCornerButton("复制译文", result.text.isNotBlank(), { onCopy(result.text) }, copy = true)
