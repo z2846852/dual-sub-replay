@@ -119,7 +119,11 @@ internal fun BilingualTranslateScreen(
     onClose: () -> Unit,
 ) {
     val snackbar = remember { SnackbarHostState() }
-    var tripleMode by rememberSaveable { mutableStateOf(false) }
+    val appContext = LocalContext.current.applicationContext
+    val preferences = remember(appContext) { appContext.getSharedPreferences("dual_sub_preferences", 0) }
+    var tripleMode by rememberSaveable {
+        mutableStateOf(preferences.getBoolean("triple_translate_mode", false))
+    }
     val savedEditors = rememberSaveableStateHolder()
     Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(Modifier.fillMaxSize()) {
@@ -131,9 +135,12 @@ internal fun BilingualTranslateScreen(
                     ) {
                         Text("即时翻译", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
                         TextButton(
-                            onClick = { tripleMode = !tripleMode },
+                            onClick = {
+                                tripleMode = !tripleMode
+                                preferences.edit().putBoolean("triple_translate_mode", tripleMode).apply()
+                            },
                             modifier = Modifier.testTag("translation_mode_toggle"),
-                        ) { Text(if (tripleMode) "双实例" else "一翻三") }
+                        ) { Text(if (tripleMode) "一翻三 ▾" else "双实例 ▾") }
                         IconButton(onClick = onClose) {
                             Icon(Icons.Default.Close, contentDescription = "关闭翻译")
                         }
