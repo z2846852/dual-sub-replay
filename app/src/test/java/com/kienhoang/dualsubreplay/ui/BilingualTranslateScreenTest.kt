@@ -13,6 +13,35 @@ class BilingualTranslateScreenTest {
     }
 
     @Test
+    fun chineseInputGetsEnglishAndTwoDistinctThaiTranslationRoutes() {
+        assertEquals(
+            listOf(
+                TripleTranslationRoute("zh", "en"),
+                TripleTranslationRoute("zh", "th"),
+                TripleTranslationRoute("en", "th"),
+            ),
+            tripleTranslationRoutes("它好用吗？", "th"),
+        )
+    }
+
+    @Test
+    fun englishInputUsesChineseAsItsIntermediateAndAllowsAnotherTarget() {
+        assertEquals(
+            listOf(
+                TripleTranslationRoute("en", "zh"),
+                TripleTranslationRoute("en", "ja"),
+                TripleTranslationRoute("zh", "ja"),
+            ),
+            tripleTranslationRoutes("Is it easy to use?", "ja"),
+        )
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun aComparisonLanguageMustDifferFromChineseAndEnglish() {
+        tripleTranslationRoutes("你好", "en")
+    }
+
+    @Test
     fun chineseTokensRemainSelectableBeforeDictionaryIsLoaded() {
         val sentence = "谢谢你"
         val tokens = bilingualWordTokens(sentence, "zh")
