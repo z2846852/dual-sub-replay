@@ -7,6 +7,7 @@ package com.kienhoang.dualsubreplay.listening
 internal data class RecallLineProgress(
     val attempts: Int = 0,
     val passed: Boolean = false,
+    val softPassed: Boolean = false,
     val firstTryPassed: Boolean = false,
     val hintLevel: Int = 0,
     val firstAnswer: String = "",
@@ -26,12 +27,13 @@ internal data class RecallLineProgress(
         val newAttempts = if (correction) attempts else attempts + 1
         val words =
             comparison.words
-                .filterNot { it.matches }
+                .filterNot { it.matches || it.optionalOmission }
                 .mapNotNull { it.expected ?: it.actual }
                 .take(20)
         return copy(
             attempts = newAttempts,
-            passed = comparison.perfect,
+            passed = comparison.perfect || comparison.softPass,
+            softPassed = comparison.softPass,
             firstTryPassed =
                 firstTryPassed ||
                     (attempts == 0 && comparison.perfect && hintLevel == 0 && !correction),
@@ -45,6 +47,6 @@ internal data class RecallLineProgress(
 
     fun hint(level: Int): RecallLineProgress = copy(hintLevel = maxOf(hintLevel, level.coerceIn(0, 2)))
 
-    /** Chinese translation is an optional hint after a checked mistake, not part of automatic red feedback. */
-    fun mayShowMeaning(): Boolean = attempts >= 1 && failed
+    /** Chinese is always a voluntary hint, including before the first check. */
+    fun mayShowMeaning(): Boolean = true
 }
