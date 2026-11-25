@@ -17,7 +17,7 @@ internal object ListeningSeriesArchive {
     fun readMissing(
         input: InputStream,
         expectedByPath: Map<String, String>,
-        onLoaded: (Int) -> Unit = {},
+        onLoaded: (Int, ListeningPack) -> Unit = { _, _ -> },
     ): List<ListeningPack> {
         if (expectedByPath.isEmpty()) return emptyList()
         val results = LinkedHashMap<String, ListeningPack>()
@@ -48,7 +48,7 @@ internal object ListeningSeriesArchive {
                             "字幕内容与索引不匹配：$path"
                         }
                         results[path] = pack
-                        onLoaded(results.size)
+                        onLoaded(results.size, pack)
                     }
                 }
                 zip.closeEntry()
