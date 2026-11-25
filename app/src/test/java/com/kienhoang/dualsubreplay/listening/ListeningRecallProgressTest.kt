@@ -7,7 +7,7 @@ import org.junit.Test
 
 class ListeningRecallProgressTest {
     @Test
-    fun firstFailureUnlocksChineseMeaningHint() {
+    fun aFailedCheckKeepsChineseHintAvailable() {
         val comparison = ListeningRecallCheck.compare("the shop", "a shop")
         val progress = RecallLineProgress().check("a shop", comparison, recognitionCorrection = false)
         assertEquals(1, progress.attempts)
@@ -18,7 +18,7 @@ class ListeningRecallProgressTest {
     }
 
     @Test
-    fun secondFailureKeepsChineseHintAvailableButDoesNotRevealAnswer() {
+    fun ChineseHintIsAlsoAvailableBeforeAnyAttempt() {
         val comparison = ListeningRecallCheck.compare("the shop", "a shop")
         val first = RecallLineProgress().check("a shop", comparison, recognitionCorrection = false)
         val second = first.check("a shop", comparison, recognitionCorrection = false)
@@ -27,7 +27,7 @@ class ListeningRecallProgressTest {
         assertEquals(2, second.attempts)
         assertEquals(1, second.hint(1).hintLevel)
         assertEquals(2, second.hint(2).hintLevel)
-        assertFalse(RecallLineProgress().mayShowMeaning())
+        assertTrue(RecallLineProgress().mayShowMeaning())
     }
 
     @Test
@@ -69,6 +69,24 @@ class ListeningRecallProgressTest {
         assertEquals("a shop", result.firstAnswer)
         assertEquals("the shop", result.lastAnswer)
         assertFalse(result.firstTryPassed)
+    }
+
+    @Test
+    fun sitcomOptionalWordsProduceNonPerfectPassWithoutFalsePerfectStats() {
+        val comparison =
+            ListeningRecallCheck.compare(
+                "Max, you are freaking amazing!",
+                "You are amazing!",
+                ignoreOptional = true,
+            )
+        assertTrue(comparison.softPass)
+        val progress = RecallLineProgress().check("You are amazing!", comparison, false)
+        assertTrue(progress.passed)
+        assertTrue(progress.softPassed)
+        assertFalse(progress.firstTryPassed)
+        assertFalse(progress.failed)
+        assertTrue(progress.wrongWords.isEmpty())
+        assertEquals(1, progress.attempts)
     }
 
     @Test
