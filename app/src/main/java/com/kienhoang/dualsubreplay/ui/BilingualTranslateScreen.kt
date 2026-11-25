@@ -3,12 +3,14 @@ package com.kienhoang.dualsubreplay.ui
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -121,10 +123,10 @@ internal fun BilingualTranslateScreen(
             Scaffold(
                 topBar = {
                     Row(
-                        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
+                        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text("即时中英互译", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+                        Text("即时中英互译", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
                         IconButton(onClick = onClose) {
                             Icon(Icons.Default.Close, contentDescription = "关闭翻译")
                         }
@@ -137,12 +139,12 @@ internal fun BilingualTranslateScreen(
                         .fillMaxSize()
                         .padding(inner)
                         .verticalScroll(rememberScrollState())
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                        .padding(horizontal = 12.dp, vertical = 2.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
                     BilingualTranslatePane(vocabulary, snackbar)
                     HorizontalDivider()
-                    BilingualTranslatePane(vocabulary, snackbar, fixedInputHeight = true)
+                    BilingualTranslatePane(vocabulary, snackbar)
                 }
             }
         }
@@ -155,7 +157,6 @@ internal fun BilingualTranslateScreen(
 private fun BilingualTranslatePane(
     vocabulary: VocabularyRepository,
     snackbar: SnackbarHostState,
-    fixedInputHeight: Boolean = false,
 ) {
     val context = LocalContext.current.applicationContext
     val clipboard = LocalClipboardManager.current
@@ -174,6 +175,7 @@ private fun BilingualTranslatePane(
     var retryVersion by remember { mutableIntStateOf(0) }
     var pickedWord by remember { mutableStateOf<BilingualWordPick?>(null) }
     var pickedMeaning by remember { mutableStateOf("") }
+    var showSourceWords by rememberSaveable { mutableStateOf(false) }
 
     val source = forcedSource ?: bilingualSourceLanguage(sourceText)
     val target = if (source == "zh") "en" else "zh"
@@ -191,6 +193,7 @@ private fun BilingualTranslatePane(
         errorMessage = null
         pickedWord = null
         pickedMeaning = ""
+        if (text.isBlank()) showSourceWords = false
     }
 
     fun copyText(text: String) {
@@ -325,37 +328,72 @@ private fun BilingualTranslatePane(
         pronouncer.speak(pick.word, pick.language)
     }
 
+
+    // Each pane has the same compact fixed-height input. Long drafts scroll *inside* the field.
+    // Word actions stay available behind one explicit affordance instead of duplicating the
+    // entire original sentence below each result by default.
     Column(
-        Modifier.fillMaxWidth().padding(vertical = 4.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+        verticalArrangement = Arrangement.spacedBy(5.dp),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(sourceLabel, style = MaterialTheme.typography.titleMedium)
-            Spacer(Modifier.weight(1f))
-            Text("自动识别", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            IconButton(onClick = {
-                val oldTarget = target
-                val translated = translatedText
-                if (translated.isNotBlank()) {
-                    editText(translated, oldTarget)
-                } else {
-                    editText(sourceText, oldTarget)
-                }
-            }) {
-                Icon(Icons.Default.SwapHoriz, contentDescription = "交换翻译方向")
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            Text(
+                "$sourceLabel → $targetLabel",
+                style = MaterialTheme.typography.labelLarge,
+                modifier = Modifier.testTag("bilingual_translate_direction"),
+            )
+            IconButton(
+                onClick = {
+                    val oldTarget = target
+                    val translated = translatedText
+                    editText(if (translated.isNotBlank()) translated else sourceText, oldTarget)
+                },
+                modifier = Modifier.size(36.dp),
+            ) {
+                Icon(Icons.Default.SwapHoriz, contentDescription = "交换翻译方向", modifier = Modifier.size(20.dp))
             }
             Spacer(Modifier.weight(1f))
-            Text(targetLabel, style = MaterialTheme.typography.titleMedium)
+            TextButton(
+                enabled = sourceText.isNotBlank(),
+                onClick = { showSourceWords = !showSourceWords },
+                modifier = Modifier.height(36.dp).testTag("bilingual_source_words_toggle"),
+                contentPadding = PaddingValues(horizontal = 4.dp),
+            ) {
+                Text(
+                    if (showSourceWords) "收起逐词" else "原文逐词",
+                    style = MaterialTheme.typography.labelSmall,
+                    maxLines = 1,
+                )
+            }
+            IconButton(
+                enabled = sourceText.isNotBlank(),
+                onClick = { pronouncer.speak(sourceText.trim(), source) },
+                modifier = Modifier.size(36.dp),
+            ) {
+                Icon(Icons.Default.VolumeUp, contentDescription = "朗读原文", modifier = Modifier.size(20.dp))
+            }
+            IconButton(
+                enabled = sourceText.isNotBlank(),
+                onClick = { copyText(sourceText) },
+                modifier = Modifier.size(36.dp),
+            ) {
+                Icon(Icons.Default.ContentCopy, contentDescription = "复制原文", modifier = Modifier.size(20.dp))
+            }
         }
         OutlinedTextField(
             value = sourceText,
             onValueChange = { editText(it) },
-            modifier = Modifier.fillMaxWidth()
-                .then(if (fixedInputHeight) Modifier.height(180.dp) else Modifier)
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(104.dp)
                 .testTag("bilingual_translate_input"),
-            placeholder = { Text("输入中文或英文，自动翻译…") },
-            minLines = if (fixedInputHeight) 1 else 2,
-            maxLines = if (fixedInputHeight) Int.MAX_VALUE else 6,
+            placeholder = { Text("输入中文或英文…") },
+            minLines = 1,
+            maxLines = Int.MAX_VALUE,
             trailingIcon = {
                 if (sourceText.isNotEmpty()) {
                     IconButton(onClick = { editText("") }) {
@@ -364,62 +402,63 @@ private fun BilingualTranslatePane(
                 }
             },
         )
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                "输入后自动翻译 · 点词发音 · 长按收藏",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.weight(1f),
+        if (showSourceWords && sourceText.isNotBlank()) {
+            BilingualInteractiveText(
+                text = sourceText,
+                language = source,
+                selected = pickedWord,
+                onTap = ::chooseWord,
+                onLongPress = ::saveWord,
             )
-            if (sourceText.isNotBlank()) {
-                IconButton(onClick = { pronouncer.speak(sourceText.trim(), source) }) {
-                    Icon(Icons.Default.VolumeUp, contentDescription = "朗读原文")
-                }
-                IconButton(onClick = { copyText(sourceText) }) {
-                    Icon(Icons.Default.ContentCopy, contentDescription = "复制原文")
-                }
-            }
         }
         if (sourceText.isNotBlank()) {
-            Card(Modifier.fillMaxWidth()) {
+            Card(Modifier.fillMaxWidth().testTag("bilingual_translate_result")) {
                 Column(
-                    Modifier.fillMaxWidth().padding(14.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp),
+                    verticalArrangement = Arrangement.spacedBy(3.dp),
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(targetLabel + "译文", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(2.dp),
+                    ) {
+                        Text(
+                            "$targetLabel · " + if (usedOffline) "本机" else "Google",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.weight(1f),
+                        )
                         if (translating) {
-                            CircularProgressIndicator(modifier = Modifier.padding(end = 8.dp))
+                            CircularProgressIndicator(modifier = Modifier.size(16.dp))
                         }
                         if (translatedText.isNotBlank()) {
-                            IconButton(onClick = { pronouncer.speak(translatedText, target) }) {
-                                Icon(Icons.Default.VolumeUp, contentDescription = "朗读整句译文")
+                            IconButton(
+                                onClick = { pronouncer.speak(translatedText, target) },
+                                modifier = Modifier.size(36.dp),
+                            ) {
+                                Icon(Icons.Default.VolumeUp, contentDescription = "朗读整句译文", modifier = Modifier.size(20.dp))
                             }
-                            IconButton(onClick = { copyText(translatedText) }) {
-                                Icon(Icons.Default.ContentCopy, contentDescription = "复制译文")
+                            IconButton(
+                                onClick = { copyText(translatedText) },
+                                modifier = Modifier.size(36.dp),
+                            ) {
+                                Icon(Icons.Default.ContentCopy, contentDescription = "复制译文", modifier = Modifier.size(20.dp))
                             }
                         }
                         if (errorMessage != null) {
-                            IconButton(onClick = { retryVersion++ }) {
-                                Icon(Icons.Default.Refresh, contentDescription = "重试翻译")
+                            IconButton(onClick = { retryVersion++ }, modifier = Modifier.size(36.dp)) {
+                                Icon(Icons.Default.Refresh, contentDescription = "重试翻译", modifier = Modifier.size(20.dp))
                             }
                         }
                     }
                     when {
-                        translatedText.isNotBlank() -> {
-                            BilingualInteractiveText(
-                                text = translatedText,
-                                language = target,
-                                selected = pickedWord,
-                                onTap = ::chooseWord,
-                                onLongPress = ::saveWord,
-                            )
-                            Text(
-                                if (usedOffline) "本机翻译" else "Google 翻译",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
+                        translatedText.isNotBlank() -> BilingualInteractiveText(
+                            text = translatedText,
+                            language = target,
+                            selected = pickedWord,
+                            onTap = ::chooseWord,
+                            onLongPress = ::saveWord,
+                        )
                         errorMessage != null -> Text(errorMessage.orEmpty(), color = MaterialTheme.colorScheme.error)
                         translating -> Text("正在翻译…", color = MaterialTheme.colorScheme.onSurfaceVariant)
                         else -> Text("正在等待输入…", color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -430,52 +469,45 @@ private fun BilingualTranslatePane(
         if (pickedWord != null) {
             val pick = pickedWord!!
             val otherLanguage = if (pick.language == "en") "zh" else "en"
-            val id =
-                savedWordId(
-                    if (pick.language == "en") pick.word.lowercase(Locale.ROOT) else pick.word,
-                    pick.language,
-                    otherLanguage,
-                    null,
-                    null,
-                )
+            val id = savedWordId(
+                if (pick.language == "en") pick.word.lowercase(Locale.ROOT) else pick.word,
+                pick.language,
+                otherLanguage,
+                null,
+                null,
+            )
             val isSaved = savedWords.any { it.id == id }
             Card(Modifier.fillMaxWidth()) {
                 Column(
-                    Modifier.fillMaxWidth().padding(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                    Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 5.dp),
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(pick.word, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                        IconButton(onClick = { pronouncer.speak(pick.word, pick.language) }) {
-                            Icon(Icons.Default.VolumeUp, contentDescription = "朗读选中单词")
+                        Text(
+                            pick.word,
+                            style = MaterialTheme.typography.titleSmall,
+                            modifier = Modifier.weight(1f),
+                        )
+                        IconButton(onClick = { pronouncer.speak(pick.word, pick.language) }, modifier = Modifier.size(36.dp)) {
+                            Icon(Icons.Default.VolumeUp, contentDescription = "朗读选中单词", modifier = Modifier.size(20.dp))
                         }
-                        IconButton(onClick = { copyText(pick.word) }) {
-                            Icon(Icons.Default.ContentCopy, contentDescription = "复制选中单词")
+                        IconButton(onClick = { copyText(pick.word) }, modifier = Modifier.size(36.dp)) {
+                            Icon(Icons.Default.ContentCopy, contentDescription = "复制选中单词", modifier = Modifier.size(20.dp))
                         }
-                        IconButton(onClick = { saveWord(pick) }) {
+                        IconButton(onClick = { saveWord(pick) }, modifier = Modifier.size(36.dp)) {
                             Icon(
                                 if (isSaved) Icons.Default.Check else Icons.Default.BookmarkAdd,
                                 contentDescription = if (isSaved) "已收藏，更新生词" else "加入生词本",
+                                modifier = Modifier.size(20.dp),
                             )
                         }
                     }
-                    if (pickedMeaning.isNotBlank()) {
-                        Text(pickedMeaning, style = MaterialTheme.typography.bodyMedium)
-                    } else {
-                        Text("释义查询中，仍可直接收藏", style = MaterialTheme.typography.labelSmall)
-                    }
+                    Text(
+                        if (pickedMeaning.isNotBlank()) pickedMeaning else "释义查询中，仍可直接收藏",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
                 }
             }
-        }
-        if (sourceText.isNotBlank()) {
-            Text("原文逐词操作", style = MaterialTheme.typography.labelMedium)
-            BilingualInteractiveText(
-                text = sourceText,
-                language = source,
-                selected = pickedWord,
-                onTap = ::chooseWord,
-                onLongPress = ::saveWord,
-            )
         }
         pronouncer.message?.let { message ->
             Text(message, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
