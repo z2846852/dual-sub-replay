@@ -256,6 +256,18 @@ internal fun ListeningRecallCard(
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
                     modifier = Modifier.weight(0.9f).height(44.dp).testTag("recall_check"),
                 ) { Text(stringResource(R.string.listening_recall_check)) }
+                if (isSitcom) {
+                    OutlinedButton(
+                        enabled = nextIndex != null,
+                        onClick = {
+                            onSaveDraft(answer)
+                            nextIndex?.let(onPlayLine)
+                        },
+                        shape = RoundedCornerShape(12.dp),
+                        contentPadding = PaddingValues(horizontal = 9.dp, vertical = 0.dp),
+                        modifier = Modifier.height(44.dp).testTag("recall_quick_next"),
+                    ) { Text("下一句", style = MaterialTheme.typography.labelMedium) }
+                }
                 if (progress.attempts > 0) {
                     Text(
                         if (verifiedSoftPass) {
