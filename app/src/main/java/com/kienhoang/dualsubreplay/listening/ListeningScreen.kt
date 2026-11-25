@@ -110,6 +110,9 @@ internal fun ListeningScreen(
                     candidate.id.startsWith("2bg-s%02d".format(sitcomSeason))
         }
     val seriesEpisodes = state.seriesEpisodes.filter { it.season == sitcomSeason }
+    val cachedSeriesPacks = remember(state.packs) {
+        state.packs.filter { it.kind == SITCOM_PACK_KIND }.associateBy { it.id }
+    }
     val pack = orderedPacks.firstOrNull { it.id == currentId } ?: orderedPacks.firstOrNull()
     var word by remember { mutableStateOf<String?>(null) }
     var selectedLine by remember { mutableStateOf<ListeningLine?>(null) }
@@ -199,6 +202,7 @@ internal fun ListeningScreen(
                                     if (!sitcomMode) {
                                         ListeningPlayback.stop(ctx)
                                         sitcomMode = true
+                                        recallMode = true
                                         currentId = null
                                         showText = false
                                     }
@@ -712,7 +716,7 @@ internal fun ListeningScreen(
                     if (sitcomMode && seriesEpisodes.isEmpty()) {
                         item {
                             Text(
-                                "本季尚无已导入的字幕。请先用 English 仓库导入你有权使用的 SRT/VTT，之后点击右上角「同步文章」。",
+                                "本季尚无字幕目录。进入专题时会自动同步全部字幕；需要重试可使用下方「补齐全部字幕」。",
                                 style = MaterialTheme.typography.bodySmall,
                             )
                         }
@@ -720,7 +724,7 @@ internal fun ListeningScreen(
                     if (sitcomMode && seriesEpisodes.isNotEmpty()) {
                         items(seriesEpisodes, key = { "2bg-episode-" + it.season + "-" + it.episode }) { episode ->
                             val loadedParts = episode.parts.mapNotNull { part ->
-                                state.packs.firstOrNull { it.id == part.id && it.kind == SITCOM_PACK_KIND }
+                                cachedSeriesPacks[part.id]
                             }
                             val downloaded = loadedParts.size == episode.parts.size
                             Card(
@@ -739,47 +743,21 @@ internal fun ListeningScreen(
                                         Text(episode.title, style = MaterialTheme.typography.titleSmall)
                                         Text(
                                             episode.parts.size.toString() + " 段 · " +
-                                                (if (downloaded) "已离线缓存" else "点击载入字幕"),
+                                                (if (downloaded) "已离线缓存" else "待批量下载"),
                                             style = MaterialTheme.typography.labelSmall,
                                         )
                                     }
-                                    OutlinedButton(enabled = !busy, onClick = {
-                                        if (downloaded) {
-                                            val target = loadedParts.firstOrNull()
-                                            if (target != null) {
-                                                currentId = target.id
-                                                recallMode = true
-                                                recallIndex = store.recallPosition(target)
-                                                store.markPackUsed(target)
-                                                ListeningPlayback.start(ctx, target, recallIndex, oneShot = true)
-                                            }
-                                        } else if (!connected) {
-                                            showSettings = true
-                                            message = "请先配置 English GitHub PAT 后载入本集"
-                                        } else {
-                                            busy = true
-                                            scope.launch {
-                                                try {
-                                                    message = github.loadSeriesEpisode(episode)
-                                                    if (message.startsWith("已载入")) {
-                                                        val target = store.state.value.packs.firstOrNull {
-                                                            it.id == episode.parts.first().id
-                                                        }
-                                                        if (target != null) {
-                                                            currentId = target.id
-                                                            recallMode = true
-                                                            recallIndex = store.recallPosition(target)
-                                                            store.markPackUsed(target)
-                                                            ListeningPlayback.start(ctx, target, recallIndex, oneShot = true)
-                                                        }
-                                                    }
-                                                } finally {
-                                                    busy = false
-                                                }
-                                            }
+                                    OutlinedButton(enabled = downloaded && !busy, onClick = {
+                                        val target = loadedParts.firstOrNull()
+                                        if (target != null) {
+                                            currentId = target.id
+                                            recallMode = true
+                                            recallIndex = store.recallPosition(target)
+                                            store.markPackUsed(target)
+                                            ListeningPlayback.start(ctx, target, recallIndex, oneShot = true)
                                         }
                                     }) {
-                                        Text(if (downloaded) "复述" else "下载")
+                                        Text(if (downloaded) "开始复述" else "自动下载中")
                                     }
                                 }
                             }
@@ -788,7 +766,7 @@ internal fun ListeningScreen(
                     if (orderedPacks.isEmpty()) {
                         item {
                             Text(
-                                if (sitcomMode) "该季尚无已缓存的字幕分段，请先从上方选集下载。" else
+                                if (sitcomMode) "字幕尚未缓存；进入专题将自动下载全部六季。" else
                                     stringResource(R.string.listening_recall_no_stories),
                                 style = MaterialTheme.typography.bodyMedium,
                             )
