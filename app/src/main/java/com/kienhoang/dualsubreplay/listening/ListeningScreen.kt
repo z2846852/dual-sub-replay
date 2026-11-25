@@ -229,6 +229,11 @@ internal fun ListeningScreen(
                     }
                     if (pack != null) {
                         item {
+                            Text(
+                                pack.title,
+                                style = MaterialTheme.typography.titleSmall,
+                                maxLines = 1,
+                            )
                             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                 FilterChip(
                                     selected = !recallMode,
