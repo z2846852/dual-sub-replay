@@ -73,6 +73,8 @@ internal object ListeningRecallCheck {
         val key = word.key
         val expanded =
             when {
+                // Dialect forms are not the standard 'not' or 'will' contractions.
+                key == "ain't" || key == "y'all" -> return listOf(word)
                 key == "can't" -> listOf("can", "not")
                 key == "won't" -> listOf("will", "not")
                 key == "shan't" -> listOf("shall", "not")
