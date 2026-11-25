@@ -113,6 +113,11 @@ internal fun ListeningScreen(
     val cachedSeriesPacks = remember(state.packs) {
         state.packs.filter { it.kind == SITCOM_PACK_KIND }.associateBy { it.id }
     }
+    val allSeriesPartIds = remember(state.seriesEpisodes) {
+        state.seriesEpisodes
+            .sortedWith(compareBy<ListeningSeriesEpisode> { it.season }.thenBy { it.episode })
+            .flatMap { episode -> episode.parts.map { it.id } }
+    }
     val pack = orderedPacks.firstOrNull { it.id == currentId } ?: orderedPacks.firstOrNull()
     var word by remember { mutableStateOf<String?>(null) }
     var selectedLine by remember { mutableStateOf<ListeningLine?>(null) }
@@ -266,17 +271,31 @@ internal fun ListeningScreen(
                                     } else {
                                         (recallIndex - 1).takeIf { it >= 0 }
                                     }
+                                val nextSeriesPack = if (sitcomMode && !wrongOnly) {
+                                    val at = allSeriesPartIds.indexOf(pack.id)
+                                    if (at >= 0) allSeriesPartIds.getOrNull(at + 1)?.let(cachedSeriesPacks::get)
+                                    else null
+                                } else null
                                 val nextIndex =
                                     if (wrongOnly && failed.isNotEmpty()) {
                                         failed.firstOrNull { it > recallIndex } ?: failed.first()
                                     } else {
                                         (recallIndex + 1).takeIf { it <= pack.lines.lastIndex }
+                                            ?: if (nextSeriesPack != null) pack.lines.size else null
                                     }
 
                                 fun playLine(i: Int) {
-                                    recallIndex = i.coerceIn(pack.lines.indices)
-                                    store.setRecallPosition(pack, recallIndex)
-                                    ListeningPlayback.start(ctx, pack, recallIndex, oneShot = true)
+                                    if (i == pack.lines.size && nextSeriesPack != null) {
+                                        sitcomSeason = nextSeriesPack.id.substringAfter("2bg-s").take(2).toInt()
+                                        currentId = nextSeriesPack.id
+                                        recallIndex = store.recallPosition(nextSeriesPack)
+                                        store.setRecallPosition(nextSeriesPack, recallIndex)
+                                        ListeningPlayback.start(ctx, nextSeriesPack, recallIndex, oneShot = true)
+                                    } else {
+                                        recallIndex = i.coerceIn(pack.lines.indices)
+                                        store.setRecallPosition(pack, recallIndex)
+                                        ListeningPlayback.start(ctx, pack, recallIndex, oneShot = true)
+                                    }
                                 }
                                 ListeningRecallCard(
                                     pack = pack,
@@ -304,7 +323,8 @@ internal fun ListeningScreen(
                                                 wrongOnly,
                                                 remaining,
                                             )
-                                        target?.let(::playLine)
+                                        if (target != null) playLine(target)
+                                        else if (!wrongOnly && nextSeriesPack != null) playLine(pack.lines.size)
                                     },
                                     onToggleWrongOnly = {
                                         if (wrongOnly) {
