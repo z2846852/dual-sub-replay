@@ -656,16 +656,23 @@ internal class ListeningGitHub(
                     require(missing.map { it.path }.distinct().size == missing.size)
                     _status.value = "正在一次性下载全部剧集字幕：还缺 ${missing.size} 段…"
                     val expected = missing.associate { it.path to it.id }
+                    val batch = ArrayList<ListeningPack>(64)
                     val loaded = withSeriesArchive(token) { input ->
-                        ListeningSeriesArchive.readMissing(input, expected) { count ->
+                        ListeningSeriesArchive.readMissing(input, expected) { count, pack ->
+                            batch.add(pack)
+                            if (batch.size >= 64) {
+                                // Save validated sections incrementally. An interrupted download
+                                // can retry without discarding previously stored subtitles.
+                                store.putPacks(batch)
+                                batch.clear()
+                            }
                             if (count == 1 || count % 20 == 0 || count == missing.size) {
                                 _status.value = "正在缓存字幕 ${count}/${missing.size} 段"
                             }
                         }
                     }
-                    // Commit only after verifying that the complete missing set was received.
-                    store.putPacks(loaded)
-                    val message = "全部字幕已下载：${episodes.size} 集、${all.size} 段；仅语音播放时按需缓存音频"
+                    if (batch.isNotEmpty()) store.putPacks(batch)
+                    val message = "全部字幕已下载：${episodes.size} 集、${all.size} 段；本次新增 ${loaded.size} 段"
                     _status.value = message
                     message
                 } catch (error: Exception) {
