@@ -45,11 +45,11 @@ internal object ListeningRecallCheck {
     )
     /** Restricted to the sitcom study pack; never infer a proper name from sentence-initial caps. */
     private val optionalNames = setOf(
-        "max", "caroline", "han", "oleg", "sophie", "earl", "andy", "diner",
+        "max", "caroline", "han", "oleg", "sophie", "earl", "andy",
         "chestnut", "peach", "darius", "dake", "deke", "candy", "johnny",
-        "luis", "luis", "nash", "randy", "jennifer", "martha", "bebe",
+        "luis", "nash", "randy", "jennifer", "martha", "bebe",
         "shoshanna", "sandra", "sasha", "hanlee",
-    ) - "diner"
+    )
     /** Do not waive useful conversational forms such as gonna, wanna, gotta, ain't. */
     private val optionalSlang = setOf(
         "bitch", "bitches", "bullshit", "crap", "crappy", "asshole",
@@ -144,7 +144,7 @@ internal object ListeningRecallCheck {
                     result += RecallWordDifference(wanted[--i].shown, said[--j].shown, matches = false)
                 }
                 i > 0 && distances[i][j] == distances[i - 1][j] +
-                    if (optionalExpected[i - 1]) 0 else 1 -> {
+                    (if (optionalExpected[i - 1]) 0 else 1) -> {
                     val omitted = --i
                     result += RecallWordDifference(
                         wanted[omitted].shown, null, matches = false,
