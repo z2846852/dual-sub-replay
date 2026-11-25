@@ -144,12 +144,15 @@ internal class ListeningGitHub(
                     pushWordMemory(token)
                     _status.value = "词汇记忆已备份，正在下载对话…"
                     val packs = pullPacks(token)
+                    val sitcomEpisodes = pullSeriesEpisodes(token)
                     store.putPacks(packs)
+                    store.putSeriesEpisodes(sitcomEpisodes)
                     // Sync completion immediately queues cached natural audio for every distinct sentence.
                     // The cache worker is resumable and rate-limited; GitHub sync returns without waiting.
-                    ListeningVoicePrefetch.schedule(application, store.state.value.packs)
+                    ListeningVoicePrefetch.schedule(application, packs)
                     val msg = "同步完成：上传 " + sent + " 条事件、云端删除 " + deleted +
-                        " 条、备份词汇记忆，获取 " + packs.size + " 个对话包"
+                        " 条、备份词汇记忆，获取 " + packs.size + " 个普通对话包、" +
+                        sitcomEpisodes.size + " 集剧集索引"
                     _status.value = msg
                     msg
                 } catch (e: Exception) {
@@ -179,12 +182,15 @@ internal class ListeningGitHub(
                     val existingIds = store.state.value.packs.mapTo(HashSet()) { it.id }
                     val packs = pullPacks(token)
                     require(packs.isNotEmpty()) { "云端课程清单为空，保留原有本地内容" }
+                    val sitcomEpisodes = pullSeriesEpisodes(token)
                     store.putPacks(packs)
-                    ListeningVoicePrefetch.schedule(application, store.state.value.packs)
+                    store.putSeriesEpisodes(sitcomEpisodes)
+                    ListeningVoicePrefetch.schedule(application, packs)
                     val newlyAdded = packs.count { it.id !in existingIds }
                     val total = store.state.value.packs.size
                     val message = "同步完成：云端 " + packs.size +
-                        " 个课程，新增 " + newlyAdded + " 个，本地共 " + total + " 个"
+                        " 个普通课程，新增 " + newlyAdded + " 个，本地共 " + total +
+                        " 个；剧集目录 " + sitcomEpisodes.size + " 集"
                     _status.value = message
                     message
                 } catch (error: Exception) {
@@ -584,6 +590,64 @@ internal class ListeningGitHub(
         }
         return KnownWordArchive(known, seen)
     }
+
+    /** Read only metadata for all seasons; never fetch every subtitle on the normal sync path. */
+    private fun pullSeriesEpisodes(token: String): List<ListeningSeriesEpisode> {
+        val rootPath = "content/series/2-broke-girls/manifest.json"
+        val text = getFile(token, rootPath)?.first ?: return emptyList()
+        val root = JSONObject(text)
+        require(root.optInt("schema_version") == 1 &&
+            root.optString("series_id") == "2-broke-girls") { "无效剧集专题索引" }
+        val seasons = root.getJSONArray("seasons")
+        require(seasons.length() <= 6) { "季数超出允许范围" }
+        val all = ArrayList<ListeningSeriesEpisode>()
+        for (i in 0 until seasons.length()) {
+            val entry = seasons.getJSONObject(i)
+            val season = entry.getInt("season")
+            val path = entry.getString("path")
+            require(season in 1..6 && path == "content/series/2-broke-girls/s%02d/manifest.json".format(season))
+            val seasonText = getFile(token, path)?.first ?: error("Missing season manifest: $path")
+            val manifest = JSONObject(seasonText)
+            require(manifest.optInt("schema_version") == 1 && manifest.optInt("season") == season)
+            val episodes = manifest.getJSONArray("episodes")
+            require(episodes.length() <= 40)
+            for (index in 0 until episodes.length()) {
+                all += ListeningSeriesEpisode.fromJson(episodes.getJSONObject(index), season)
+            }
+        }
+        require(all.map { it.season to it.episode }.distinct().size == all.size)
+        return all.sortedWith(compareBy<ListeningSeriesEpisode> { it.season }.thenBy { it.episode })
+    }
+
+    /** Download one episode's sections on demand, preserving existing recalled lines offline. */
+    suspend fun loadSeriesEpisode(episode: ListeningSeriesEpisode): String =
+        mutex.withLock {
+            withContext(Dispatchers.IO) {
+                try {
+                    val token = vault.read() ?: return@withContext "请先连接 English GitHub PAT"
+                    _status.value = "正在获取 S%02dE%02d 的字幕…".format(episode.season, episode.episode)
+                    verify(token)
+                    val parts = episode.parts.map { part ->
+                        val payload = getFile(token, part.path)?.first
+                            ?: error("Missing subtitle part: " + part.path)
+                        ListeningPack.fromJson(JSONObject(payload)).also { pack ->
+                            require(pack.id == part.id && pack.kind == SITCOM_PACK_KIND)
+                        }
+                    }
+                    store.putPacks(parts)
+                    ListeningVoicePrefetch.schedule(application, parts)
+                    val message = "已载入 S%02dE%02d，共 %d 段、%d 句".format(
+                        episode.season, episode.episode, parts.size, parts.sumOf { it.lines.size },
+                    )
+                    _status.value = message
+                    message
+                } catch (error: Exception) {
+                    val message = "剧集加载失败：" + safeError(error) + "。已有离线内容保留"
+                    _status.value = message
+                    message
+                }
+            }
+        }
 
     private fun pullPacks(token: String): List<ListeningPack> {
         val manifestText = getFile(token, "content/manifest.json")?.first ?: return emptyList()
