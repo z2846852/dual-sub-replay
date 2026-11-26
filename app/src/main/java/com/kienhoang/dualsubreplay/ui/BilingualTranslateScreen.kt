@@ -125,6 +125,13 @@ internal fun BilingualTranslateScreen(
     var tripleMode by rememberSaveable {
         mutableStateOf(preferences.getBoolean("triple_translate_mode", false))
     }
+    val translationChoices = remember(appContext) { availableTranslationChoices(appContext) }
+    var translator by rememberSaveable {
+        mutableStateOf(preferences.getString(QUICK_TRANSLATION_CHOICE_PREF, GOOGLE_TRANSLATION_CHOICE)
+            ?: GOOGLE_TRANSLATION_CHOICE)
+    }
+    val chosenTranslator = translator.takeIf { wanted -> translationChoices.any { it.key == wanted } }
+        ?: GOOGLE_TRANSLATION_CHOICE
     val savedEditors = rememberSaveableStateHolder()
     Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(Modifier.fillMaxSize()) {
@@ -142,6 +149,10 @@ internal fun BilingualTranslateScreen(
                             },
                             modifier = Modifier.testTag("translation_mode_toggle"),
                         ) { Text(if (tripleMode) "一翻三 ▾" else "双实例 ▾") }
+                        TranslationChoiceMenu(translationChoices, chosenTranslator) { picked ->
+                            translator = picked
+                            preferences.edit().putString(QUICK_TRANSLATION_CHOICE_PREF, picked).apply()
+                        }
                         IconButton(onClick = onClose) {
                             Icon(Icons.Default.Close, contentDescription = "关闭翻译")
                         }
@@ -159,13 +170,13 @@ internal fun BilingualTranslateScreen(
                 ) {
                     if (tripleMode) {
                         savedEditors.SaveableStateProvider("triple") {
-                            TripleTranslatePane(vocabulary, snackbar)
+                            TripleTranslatePane(vocabulary, snackbar, chosenTranslator)
                         }
                     } else {
                         savedEditors.SaveableStateProvider("dual") {
-                            BilingualTranslatePane(vocabulary, snackbar)
+                            BilingualTranslatePane(vocabulary, snackbar, chosenTranslator)
                             HorizontalDivider()
-                            BilingualTranslatePane(vocabulary, snackbar)
+                            BilingualTranslatePane(vocabulary, snackbar, chosenTranslator)
                         }
                     }
                 }
@@ -180,6 +191,7 @@ internal fun BilingualTranslateScreen(
 private fun BilingualTranslatePane(
     vocabulary: VocabularyRepository,
     snackbar: SnackbarHostState,
+    translator: String,
 ) {
     val context = LocalContext.current.applicationContext
     val clipboard = LocalClipboardManager.current
@@ -192,7 +204,7 @@ private fun BilingualTranslatePane(
     var sourceText by rememberSaveable { mutableStateOf("") }
     var forcedSource by rememberSaveable { mutableStateOf<String?>(null) }
     var translatedText by remember { mutableStateOf("") }
-    var usedOffline by remember { mutableStateOf(false) }
+    var translationLabel by remember { mutableStateOf("Google") }
     var translating by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var retryVersion by remember { mutableIntStateOf(0) }
@@ -283,7 +295,7 @@ private fun BilingualTranslatePane(
     }
 
     // LaunchedEffect cancels previous work whenever the text or direction changes.
-    LaunchedEffect(sourceText, source, retryVersion) {
+    LaunchedEffect(sourceText, source, translator, retryVersion) {
         val query = sourceText.trim()
         if (query.isBlank()) {
             translatedText = ""
@@ -296,17 +308,17 @@ private fun BilingualTranslatePane(
             translating = false
             return@LaunchedEffect
         }
-        delay(AUTO_TRANSLATE_DELAY_MS)
+        delay(if (translator == GOOGLE_TRANSLATION_CHOICE) AUTO_TRANSLATE_DELAY_MS else 900L)
         translating = true
         errorMessage = null
         try {
-            val (result, offline) = bilingualTranslate(google, local, source, target, query)
+            val result = translateWithChoice(context, google, local, translator, source, target, query)
             currentCoroutineContext().ensureActive()
-            if (result.isBlank()) {
+            if (result.text.isBlank()) {
                 errorMessage = "暂时无法翻译，请重试"
             } else {
-                translatedText = result
-                usedOffline = offline
+                translatedText = result.text
+                translationLabel = result.label
             }
         } catch (cancelled: CancellationException) {
             throw cancelled
@@ -452,7 +464,7 @@ private fun BilingualTranslatePane(
                         horizontalArrangement = Arrangement.spacedBy(2.dp),
                     ) {
                         Text(
-                            "$targetLabel · " + if (usedOffline) "本机" else "Google",
+                            "$targetLabel · $translationLabel",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.weight(1f),

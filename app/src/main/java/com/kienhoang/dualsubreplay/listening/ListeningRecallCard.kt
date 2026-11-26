@@ -25,6 +25,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
@@ -48,13 +49,23 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
+import com.kienhoang.dualsubreplay.translation.GoogleWebTranslator
+import com.kienhoang.dualsubreplay.translation.OnDeviceTranslator
+import com.kienhoang.dualsubreplay.ui.GOOGLE_TRANSLATION_CHOICE
+import com.kienhoang.dualsubreplay.ui.LISTENING_TRANSLATION_CHOICE_PREF
+import com.kienhoang.dualsubreplay.ui.TranslationChoiceMenu
+import com.kienhoang.dualsubreplay.ui.availableTranslationChoices
+import com.kienhoang.dualsubreplay.ui.translateWithChoice
+import java.io.File
 import com.kienhoang.dualsubreplay.R
 
 /**
@@ -101,6 +112,43 @@ internal fun ListeningRecallCard(
     }
     var revealed by remember(pack.id, line.id) { mutableIntStateOf(0) }
     var showChinese by remember(pack.id, line.id) { mutableStateOf(false) }
+    val translationContext = LocalContext.current.applicationContext
+    val translationPreferences = remember(translationContext) {
+        translationContext.getSharedPreferences("dual_sub_preferences", 0)
+    }
+    val translationChoices = remember(translationContext) { availableTranslationChoices(translationContext) }
+    var hintEngine by remember {
+        mutableStateOf(translationPreferences.getString(LISTENING_TRANSLATION_CHOICE_PREF, GOOGLE_TRANSLATION_CHOICE)
+            ?: GOOGLE_TRANSLATION_CHOICE)
+    }
+    val selectedHintEngine = hintEngine.takeIf { saved -> translationChoices.any { it.key == saved } }
+        ?: GOOGLE_TRANSLATION_CHOICE
+    var translatedHint by remember(pack.id, line.id, selectedHintEngine) { mutableStateOf("") }
+    var hintLoading by remember(pack.id, line.id, selectedHintEngine) { mutableStateOf(false) }
+    var hintError by remember(pack.id, line.id, selectedHintEngine) { mutableStateOf<String?>(null) }
+    val hintGoogle = remember(translationContext) {
+        GoogleWebTranslator(File(translationContext.cacheDir, "google-translations"))
+    }
+    val hintLocal = remember(translationContext) {
+        OnDeviceTranslator(File(translationContext.cacheDir, "subtitle-translations"))
+    }
+    LaunchedEffect(pack.id, line.id, showChinese, selectedHintEngine) {
+        if (!showChinese || line.en.isBlank()) return@LaunchedEffect
+        if (selectedHintEngine == GOOGLE_TRANSLATION_CHOICE && line.zh.isNotBlank()) return@LaunchedEffect
+        hintLoading = true
+        hintError = null
+        try {
+            translatedHint = translateWithChoice(
+                translationContext, hintGoogle, hintLocal, selectedHintEngine, "en", "zh", line.en,
+            ).text
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (error: Exception) {
+            hintError = error.message ?: "翻译失败，检查网络或密钥后重试"
+        } finally {
+            hintLoading = false
+        }
+    }
     val isSitcom = pack.kind == SITCOM_PACK_KIND
     var correctionPending by remember(pack.id, line.id) { mutableStateOf(false) }
     var advancePending by remember(pack.id, line.id) { mutableStateOf(false) }
@@ -342,7 +390,7 @@ internal fun ListeningRecallCard(
                     contentPadding = PaddingValues(horizontal = 5.dp, vertical = 0.dp),
                 ) { Text(stringResource(R.string.listening_recall_replay), style = MaterialTheme.typography.labelMedium, maxLines = 1) }
                 OutlinedButton(
-                    enabled = line.zh.isNotBlank(),
+                    enabled = line.en.isNotBlank(),
                     onClick = {
                         showChinese = !showChinese
                         if (showChinese) onHint(1)
@@ -373,13 +421,33 @@ internal fun ListeningRecallCard(
                 )
                 RecallDifferenceRow(comparison, expected = false, onTargetTap = {})
             }
-            if (showChinese && line.zh.isNotBlank()) {
-                Text(
-                    line.zh,
-                    modifier = Modifier.fillMaxWidth().testTag("recall_meaning_text"),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.bodyMedium,
-                )
+            if (showChinese) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Text("中文译法", style = MaterialTheme.typography.labelSmall)
+                    TranslationChoiceMenu(translationChoices, selectedHintEngine) { choice ->
+                        hintEngine = choice
+                        translationPreferences.edit().putString(LISTENING_TRANSLATION_CHOICE_PREF, choice).apply()
+                    }
+                    if (hintLoading) CircularProgressIndicator(modifier = Modifier.size(16.dp))
+                }
+                val meaning = if (selectedHintEngine == GOOGLE_TRANSLATION_CHOICE && line.zh.isNotBlank()) {
+                    line.zh
+                } else {
+                    translatedHint
+                }
+                when {
+                    meaning.isNotBlank() -> Text(
+                        meaning,
+                        modifier = Modifier.fillMaxWidth().testTag("recall_meaning_text"),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    hintError != null -> Text(hintError.orEmpty(), color = MaterialTheme.colorScheme.error)
+                    hintLoading -> Text("翻译中…", style = MaterialTheme.typography.labelSmall)
+                }
             }
             if (revealed >= 2 || verifiedSoftPass) {
                 Text(

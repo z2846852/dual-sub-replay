@@ -80,6 +80,7 @@ internal fun tripleTranslationRoutes(input: String, selectedTarget: String): Lis
 private data class QuickResult(
     val text: String = "",
     val offline: Boolean = false,
+    val providerLabel: String = "Google",
     val loading: Boolean = false,
     val error: String? = null,
 )
@@ -94,6 +95,7 @@ private fun chineseLanguageName(code: String): String =
 internal fun TripleTranslatePane(
     vocabulary: VocabularyRepository,
     snackbar: SnackbarHostState,
+    translator: String,
 ) {
     val context = LocalContext.current.applicationContext
     val clipboard = LocalClipboardManager.current
@@ -183,7 +185,7 @@ internal fun TripleTranslatePane(
 
     // The direct translation does not depend on the intermediate English/Chinese sentence.
     // It therefore stays available even if the pivot or its network request fails.
-    LaunchedEffect(input, targetLanguage, retry) {
+    LaunchedEffect(input, targetLanguage, translator, retry) {
         val text = input.trim()
         if (text.isEmpty()) return@LaunchedEffect
         if (text.length > 4_000) {
@@ -193,9 +195,9 @@ internal fun TripleTranslatePane(
         delay(420)
         directResult = QuickResult(loading = true)
         try {
-            val (translated, offline) = bilingualTranslate(google, local, routes[1].source, routes[1].target, text)
+            val result = translateWithChoice(context, google, local, translator, routes[1].source, routes[1].target, text)
             currentCoroutineContext().ensureActive()
-            directResult = if (translated.isNotBlank()) QuickResult(text = translated, offline = offline)
+            directResult = if (result.text.isNotBlank()) QuickResult(text = result.text, providerLabel = result.label)
                 else QuickResult(error = "翻译结果为空")
         } catch (cancel: CancellationException) {
             throw cancel
@@ -204,7 +206,7 @@ internal fun TripleTranslatePane(
         }
     }
 
-    LaunchedEffect(input, retry) {
+    LaunchedEffect(input, translator, retry) {
         val text = input.trim()
         if (text.isEmpty()) return@LaunchedEffect
         if (text.length > 4_000) {
@@ -214,9 +216,9 @@ internal fun TripleTranslatePane(
         delay(420)
         pivotResult = QuickResult(loading = true)
         try {
-            val (translated, offline) = bilingualTranslate(google, local, routes[0].source, routes[0].target, text)
+            val result = translateWithChoice(context, google, local, translator, routes[0].source, routes[0].target, text)
             currentCoroutineContext().ensureActive()
-            pivotResult = if (translated.isNotBlank()) QuickResult(text = translated, offline = offline)
+            pivotResult = if (result.text.isNotBlank()) QuickResult(text = result.text, providerLabel = result.label)
                 else QuickResult(error = "翻译结果为空")
         } catch (cancel: CancellationException) {
             throw cancel
@@ -227,7 +229,7 @@ internal fun TripleTranslatePane(
 
     // Only the THIRD result uses the intermediate sentence; never silently substitute the
     // Chinese direct translation when English->Thai fails, or the comparison is meaningless.
-    LaunchedEffect(input, pivotResult.text, targetLanguage, retry) {
+    LaunchedEffect(input, pivotResult.text, targetLanguage, translator, retry) {
         val intermediate = pivotResult.text
         if (input.isBlank() || intermediate.isBlank()) {
             viaResult = QuickResult()
@@ -235,9 +237,9 @@ internal fun TripleTranslatePane(
         }
         viaResult = QuickResult(loading = true)
         try {
-            val (translated, offline) = bilingualTranslate(google, local, routes[2].source, routes[2].target, intermediate)
+            val result = translateWithChoice(context, google, local, translator, routes[2].source, routes[2].target, intermediate)
             currentCoroutineContext().ensureActive()
-            viaResult = if (translated.isNotBlank()) QuickResult(text = translated, offline = offline)
+            viaResult = if (result.text.isNotBlank()) QuickResult(text = result.text, providerLabel = result.label)
                 else QuickResult(error = "翻译结果为空")
         } catch (cancel: CancellationException) {
             throw cancel
@@ -429,7 +431,7 @@ private fun TripleResultCard(
                     CircularProgressIndicator(modifier = Modifier.size(14.dp))
                 }
                 if (result.text.isNotBlank()) {
-                    Text(if (result.offline) "本机" else "Google", style = MaterialTheme.typography.labelSmall)
+                    Text(result.providerLabel, style = MaterialTheme.typography.labelSmall)
                 }
                 TranslationCornerButton("朗读译文", result.text.isNotBlank(), { onSpeak(result.text) }, copy = false)
                 TranslationCornerButton("复制译文", result.text.isNotBlank(), { onCopy(result.text) }, copy = true)
