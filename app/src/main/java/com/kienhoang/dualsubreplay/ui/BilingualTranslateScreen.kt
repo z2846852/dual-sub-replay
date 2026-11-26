@@ -297,6 +297,9 @@ private fun BilingualTranslatePane(
     // LaunchedEffect cancels previous work whenever the text or direction changes.
     LaunchedEffect(sourceText, source, translator, retryVersion) {
         val query = sourceText.trim()
+        // Do not leave a previous engine's output visible while a newly selected AI fails.
+        translatedText = ""
+        translationLabel = if (translator == GOOGLE_TRANSLATION_CHOICE) "Google" else "AI"
         if (query.isBlank()) {
             translatedText = ""
             translating = false

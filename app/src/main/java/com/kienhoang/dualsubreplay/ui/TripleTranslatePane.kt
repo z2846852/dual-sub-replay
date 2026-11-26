@@ -192,8 +192,8 @@ internal fun TripleTranslatePane(
             directResult = QuickResult(error = "最多输入 4000 字")
             return@LaunchedEffect
         }
-        delay(420)
         directResult = QuickResult(loading = true)
+        delay(if (translator == GOOGLE_TRANSLATION_CHOICE) 420L else 900L)
         try {
             val result = translateWithChoice(context, google, local, translator, routes[1].source, routes[1].target, text)
             currentCoroutineContext().ensureActive()
@@ -213,8 +213,8 @@ internal fun TripleTranslatePane(
             pivotResult = QuickResult(error = "最多输入 4000 字")
             return@LaunchedEffect
         }
-        delay(420)
         pivotResult = QuickResult(loading = true)
+        delay(if (translator == GOOGLE_TRANSLATION_CHOICE) 420L else 900L)
         try {
             val result = translateWithChoice(context, google, local, translator, routes[0].source, routes[0].target, text)
             currentCoroutineContext().ensureActive()

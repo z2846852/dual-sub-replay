@@ -75,7 +75,7 @@ internal fun TranslationChoiceMenu(
     onSelect: (String) -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
-    val label = options.firstOrNull { it.key == selected }?.label ?: "Google"
+    val label = (options.firstOrNull { it.key == selected }?.label ?: "Google").substringBefore(" · ")
     Box {
         TextButton(onClick = { expanded = true }, modifier = Modifier.testTag("translation_engine_picker")) {
             Text("$label ▾", maxLines = 1)

@@ -431,6 +431,9 @@ internal fun ListeningRecallCard(
                         hintEngine = choice
                         translationPreferences.edit().putString(LISTENING_TRANSLATION_CHOICE_PREF, choice).apply()
                     }
+                    if (selectedHintEngine == GOOGLE_TRANSLATION_CHOICE && line.zh.isNotBlank()) {
+                        Text("课件原译", style = MaterialTheme.typography.labelSmall)
+                    }
                     if (hintLoading) CircularProgressIndicator(modifier = Modifier.size(16.dp))
                 }
                 val meaning = if (selectedHintEngine == GOOGLE_TRANSLATION_CHOICE && line.zh.isNotBlank()) {
