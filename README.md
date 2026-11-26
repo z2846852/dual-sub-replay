@@ -97,7 +97,7 @@
 1. 打开 [本 Fork 最新 Release](https://github.com/z2846852/dual-sub-replay/releases/latest)。
 2. 本 Fork 的 [Personal Fast APK](https://github.com/z2846852/dual-sub-replay/actions/workflows/personal-fast-apk.yml) 在 `main` 提交时构建、签名并发布个人安装包；这是**快速构建，不运行完整测试**。它独立于完整 CI，因此 Release 存在不代表所有测试通过。
 3. 下载并安装 `DualSub-Replay.apk`，系统可能要求一次「允许安装未知应用」。
-4. 今后进入 App 的「检查更新」，即可从**本 Fork** 下载、校验并安装新版。适用时优先使用小差分包，否则完整下载 APK。
+4. 今后进入 App 的「检查更新」，入口及更新弹窗会显示上一次实际运行版本与本次安装版本；仅本机保存历史，首次显示未记录，不猜测未运行的中间版本。可以从**本 Fork** 下载、校验并安装新版。适用时优先使用小差分包，否则完整下载 APK。
 
 按需验证：[Android verification（手动运行）](https://github.com/z2846852/dual-sub-replay/actions/workflows/android.yml)，用于单元测试、Android Lint、Debug 编译，并可选模拟器测试。不强制执行代码格式检查，也不阻断个人版快速出包。快速 APK 成功不等于已通过真机测试。
 

@@ -90,15 +90,14 @@ internal fun CheckForUpdatesRow(onOpen: () -> Unit) {
         Spacer(Modifier.width(12.dp))
         Column {
             Text(stringResource(R.string.updates_check), style = MaterialTheme.typography.bodyMedium)
-            Text(
-                if (available != null) {
-                    stringResource(R.string.updates_available_short, available)
-                } else {
-                    stringResource(R.string.updates_version, BuildConfig.VERSION_NAME)
-                },
-                style = MaterialTheme.typography.labelSmall,
-                color = if (available != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            InstalledVersionHistory()
+            if (available != null) {
+                Text(
+                    stringResource(R.string.updates_available_short, available),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
             if (AppUpdater.channel(context) == UpdateChannel.GooglePlay) {
                 // This build's Play Store destination is the upstream package, not the personal fork.
                 Text(
@@ -109,6 +108,21 @@ internal fun CheckForUpdatesRow(onOpen: () -> Unit) {
             }
         }
     }
+}
+
+@Composable
+private fun InstalledVersionHistory() {
+    val context = LocalContext.current
+    val previous = remember(context) { AppUpdater.previousInstalledVersion(context) }
+    Text(
+        stringResource(
+            R.string.updates_installed_history,
+            previous ?: stringResource(R.string.updates_history_unknown),
+            BuildConfig.VERSION_NAME,
+        ),
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
 }
 
 /** The update dialog, shown from the drawer or when an automatic update waits for a tap. */
@@ -136,7 +150,7 @@ internal fun AppUpdateDialogHost(channel: UpdateChannel = AppUpdater.channel(Loc
             // Hiding progress never cancels an update or asks the user to decide again.
             onDismissRequest = { AppUpdater.hideDialog() },
             title = { Text(stringResource(R.string.updates_check)) },
-            text = { OneTapUpdateProgress(state) },
+            text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { InstalledVersionHistory(); OneTapUpdateProgress(state) } },
             confirmButton = {},
         )
         return
@@ -149,7 +163,7 @@ internal fun AppUpdateDialogHost(channel: UpdateChannel = AppUpdater.channel(Loc
         AlertDialog(
             onDismissRequest = close,
             title = { DialogTitle(stringResource(R.string.updates_check), onClose = close) },
-            text = { UpdateMessage(stringResource(why), noBrowser) },
+            text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { InstalledVersionHistory(); UpdateMessage(stringResource(why), noBrowser) } },
             confirmButton = { UpdateButton(R.string.updates_open_github, "update_open_github") { open(UPDATE_RELEASES_PAGE_URL) } },
         )
         return
@@ -159,7 +173,7 @@ internal fun AppUpdateDialogHost(channel: UpdateChannel = AppUpdater.channel(Loc
         onDismissRequest = close,
         // The X hides the dialog like Not now; a download or a ready update carries on.
         title = { DialogTitle(stringResource(R.string.updates_check), onClose = close) },
-        text = { UpdateDialogText(current, noBrowser) },
+        text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { InstalledVersionHistory(); UpdateDialogText(current, noBrowser) } },
         confirmButton = { UpdateConfirmButton(current, close) },
         dismissButton = {
             when (current) {

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="updates_installed_history">Previous: %1$s · Current: %2$s</string>
+    <string name="updates_history_unknown">Not recorded</string>
+</resources>

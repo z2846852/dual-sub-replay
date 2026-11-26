@@ -318,6 +318,7 @@ internal object AppUpdater {
      * automatically on), and a waiting update shows.
      */
     fun onAppStarted(context: Context) {
+        previousInstalledVersion(context)
         foreground = true
         val app = context.applicationContext
         if (state.value is UpdateState.Installing) recoverUnansweredInstall(app)
@@ -1019,6 +1020,19 @@ internal object AppUpdater {
     private fun unmetered(context: Context): Boolean {
         val connectivity = context.getSystemService(ConnectivityManager::class.java) ?: return false
         return connectivity.activeNetwork != null && !connectivity.isActiveNetworkMetered
+    }
+
+    /** The previous observed running build, not the last remote release or download. */
+    @Synchronized
+    fun previousInstalledVersion(context: Context): String? {
+        val prefs = context.applicationContext.getSharedPreferences("installed_version_history", Context.MODE_PRIVATE)
+        val current = BuildConfig.VERSION_NAME
+        val last = prefs.getString("current", null)
+        if (last != current) {
+            prefs.edit().putString("current", current).putString("previous", last).commit()
+            return last
+        }
+        return prefs.getString("previous", null)
     }
 
     private fun preferences(context: Context) = context.getSharedPreferences("dual_sub_preferences", 0)
