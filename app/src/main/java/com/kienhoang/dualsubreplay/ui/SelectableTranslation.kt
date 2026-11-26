@@ -15,6 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import com.kienhoang.dualsubreplay.assistant.AI_KEYS_PREFERENCES
 import com.kienhoang.dualsubreplay.assistant.AI_SETTINGS_PREFERENCES
+import com.kienhoang.dualsubreplay.assistant.AiChatException
 import com.kienhoang.dualsubreplay.assistant.AiHttpTransport
 import com.kienhoang.dualsubreplay.assistant.AiKeyStore
 import com.kienhoang.dualsubreplay.assistant.AiProvider
@@ -154,7 +155,17 @@ internal suspend fun translateWithChoice(
         Return ONLY valid JSON: {"sentences":[{"id":1,"rows":["translated text"]}]}.
         Preserve each sentence's id and the number of rows; output no explanation or markdown.
     """.trimIndent()
-    val reply = ai.ask(instructions, aiTranslationRequest(emptyList(), listOf(sentence)))
+    val reply = try {
+        ai.ask(instructions, aiTranslationRequest(emptyList(), listOf(sentence)))
+    } catch (error: AiChatException) {
+        if (error.detail.orEmpty().contains("User location is not supported", ignoreCase = true)) {
+            throw IOException(
+                "$name API 拒绝当前地区的请求。可点击「改用 Google」，或在顶部选择其他已配置的 AI 服务；切换翻译语言无法解决。",
+                error,
+            )
+        }
+        throw error
+    }
     val translated = parseAiTranslationReply(reply, listOf(sentence))
         .firstOrNull()?.singleOrNull()?.trim().orEmpty()
     if (translated.isBlank()) throw AiTranslationException("AI 未返回有效译文，请重试")

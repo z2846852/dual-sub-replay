@@ -132,6 +132,10 @@ internal fun BilingualTranslateScreen(
     }
     val chosenTranslator = translator.takeIf { wanted -> translationChoices.any { it.key == wanted } }
         ?: GOOGLE_TRANSLATION_CHOICE
+    fun selectTranslator(picked: String) {
+        translator = picked
+        preferences.edit().putString(QUICK_TRANSLATION_CHOICE_PREF, picked).apply()
+    }
     val savedEditors = rememberSaveableStateHolder()
     Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(Modifier.fillMaxSize()) {
@@ -149,10 +153,7 @@ internal fun BilingualTranslateScreen(
                             },
                             modifier = Modifier.testTag("translation_mode_toggle"),
                         ) { Text(if (tripleMode) "一翻三 ▾" else "双实例 ▾") }
-                        TranslationChoiceMenu(translationChoices, chosenTranslator) { picked ->
-                            translator = picked
-                            preferences.edit().putString(QUICK_TRANSLATION_CHOICE_PREF, picked).apply()
-                        }
+                        TranslationChoiceMenu(translationChoices, chosenTranslator, ::selectTranslator)
                         IconButton(onClick = onClose) {
                             Icon(Icons.Default.Close, contentDescription = "关闭翻译")
                         }
@@ -170,13 +171,13 @@ internal fun BilingualTranslateScreen(
                 ) {
                     if (tripleMode) {
                         savedEditors.SaveableStateProvider("triple") {
-                            TripleTranslatePane(vocabulary, snackbar, chosenTranslator)
+                            TripleTranslatePane(vocabulary, snackbar, chosenTranslator, ::selectTranslator)
                         }
                     } else {
                         savedEditors.SaveableStateProvider("dual") {
-                            BilingualTranslatePane(vocabulary, snackbar, chosenTranslator)
+                            BilingualTranslatePane(vocabulary, snackbar, chosenTranslator, ::selectTranslator)
                             HorizontalDivider()
-                            BilingualTranslatePane(vocabulary, snackbar, chosenTranslator)
+                            BilingualTranslatePane(vocabulary, snackbar, chosenTranslator, ::selectTranslator)
                         }
                     }
                 }
@@ -192,6 +193,7 @@ private fun BilingualTranslatePane(
     vocabulary: VocabularyRepository,
     snackbar: SnackbarHostState,
     translator: String,
+    onSelectTranslator: (String) -> Unit,
 ) {
     val context = LocalContext.current.applicationContext
     val clipboard = LocalClipboardManager.current
@@ -503,7 +505,15 @@ private fun BilingualTranslatePane(
                             onTap = ::chooseWord,
                             onLongPress = ::saveWord,
                         )
-                        errorMessage != null -> Text(errorMessage.orEmpty(), color = MaterialTheme.colorScheme.error)
+                        errorMessage != null -> {
+                            Text(errorMessage.orEmpty(), color = MaterialTheme.colorScheme.error)
+                            if (translator != GOOGLE_TRANSLATION_CHOICE) {
+                                TextButton(
+                                    onClick = { onSelectTranslator(GOOGLE_TRANSLATION_CHOICE) },
+                                    modifier = Modifier.testTag("quick_translation_switch_google"),
+                                ) { Text("改用 Google") }
+                            }
+                        }
                         translating -> Text("正在翻译…", color = MaterialTheme.colorScheme.onSurfaceVariant)
                         else -> Text("正在等待输入…", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }

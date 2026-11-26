@@ -96,6 +96,7 @@ internal fun TripleTranslatePane(
     vocabulary: VocabularyRepository,
     snackbar: SnackbarHostState,
     translator: String,
+    onSelectTranslator: (String) -> Unit,
 ) {
     val context = LocalContext.current.applicationContext
     val clipboard = LocalClipboardManager.current
@@ -285,6 +286,25 @@ internal fun TripleTranslatePane(
                         }
                     },
                 )
+            }
+        }
+        if (translator != GOOGLE_TRANSLATION_CHOICE &&
+            (pivotResult.error != null || directResult.error != null)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    "AI 翻译失败，可换其他引擎",
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+                TextButton(
+                    onClick = { onSelectTranslator(GOOGLE_TRANSLATION_CHOICE) },
+                    modifier = Modifier.testTag("triple_translation_switch_google"),
+                ) { Text("改用 Google") }
             }
         }
         TripleResultCard(
