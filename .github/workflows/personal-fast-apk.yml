@@ -2,6 +2,13 @@ name: Personal Fast APK
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - 'README.md'
+      - 'docs/**'
+      - 'CONTRIBUTORS.md'
+      - 'LICENSE'
+      - 'THIRD_PARTY_NOTICES.md'
+      - '.github/workflows/android.yml'
   workflow_dispatch:
 
 permissions:
@@ -29,7 +36,14 @@ jobs:
           packages: platform-tools
           log-accepted-android-sdk-licenses: false
       - name: Android SDK
-        run: sdkmanager "platforms;android-37.0" "build-tools;36.0.0"
+        run: |
+          set -euo pipefail
+          missing=()
+          for pkg in "platforms;android-37.0" "build-tools;36.0.0"; do
+            dir="${pkg//;/\/}"
+            [[ -f "$ANDROID_HOME/$dir/source.properties" ]] || missing+=("$pkg")
+          done
+          if (( ${#missing[@]} )); then sdkmanager "${missing[@]}"; fi
       - uses: gradle/actions/setup-gradle@v4
       - name: Use personal fixed-signature keystore
         run: |
@@ -47,7 +61,7 @@ jobs:
           set -euo pipefail
           version="3.0.$GITHUB_RUN_NUMBER"
           version_code=$(( 200000 + GITHUB_RUN_NUMBER ))
-          bash ./gradlew :app:assembleRelease -PforkRelease=true "-PforkVersionName=$version" "-PforkVersionCode=$version_code" -PrequireReleaseSigning=true --stacktrace
+          bash ./gradlew :app:assembleRelease -PforkRelease=true "-PforkVersionName=$version" "-PforkVersionCode=$version_code" -PrequireReleaseSigning=true --build-cache --stacktrace
           mkdir -p dist
           cp app/build/outputs/apk/release/app-release.apk dist/DualSub-Replay.apk
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs dist/DualSub-Replay.apk
